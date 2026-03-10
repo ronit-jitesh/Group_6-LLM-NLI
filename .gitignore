@@ -1,5 +1,6 @@
 # Environment
 .env
+*.env
 .ipynb_checkpoints/
 __pycache__/
 *.pyc
@@ -10,8 +11,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Large logs or data if necessary (README says data/ is included, so I'll keep it)
-# logs_*.txt  # These are quite large (300KB+), I'll exclude them to keep the repo clean
-logs_03.txt
-logs_04.txt
-logs_05.txt
+# Internal / not for submission
+INTERNAL_NOTES.md
+updated results.ipynb
+updated  results.ipynb
+
+# Logs (large, not needed in repo)
+logs_*.txt
+notebooks/legacy_colab_run.ipynb

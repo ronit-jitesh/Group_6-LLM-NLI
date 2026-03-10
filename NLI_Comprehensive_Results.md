@@ -152,12 +152,10 @@ P5 costs 17× more than P1 for *identical* matched accuracy. P4 costs 2× P1 for
 
 | Model | P1 | P2 | P3 | P4 | Cost/1k (P1) | Status |
 |-------|----|----|----|----|-------------|--------|
-| GPT-4o | 84.0% | 82.9% | 84.8% | **85.5%** | $0.20 | ✅ Optimal |
-| Claude Sonnet 4.5 | 87.4% | 88.4% | 88.5% | — | $0.31 | 🎯 Frontier |
-| GPT-5 (o3-mini) | 75.9% | 75.2% | 80.0% | — | $14.83 | 🔬 Exploratory |
-| Llama 3.3 70B | 82.5%* | — | — | — | $0.00 | 🔬 Exploratory |
-
-*\*Partial dataset (~450 samples) due to rate-limiting. The 82.5% figure is computed on valid predictions only; when unmapped/error rows are treated as incorrect over the full 800, the effective accuracy is ~71.3%, as shown in Fig 1.*
+| GPT-4o | 84.0% | 82.9% | 84.8% | 85.5% | $0.20 | ✅ Optimal |
+| Claude Sonnet 4.5 | 87.4% | 88.4% | 88.5% | **80.5%** | $0.31 | 🎯 Frontier |
+| GPT-5 / o3-mini | 75.9% | 75.2% | 84.1% | 86.9% | $14.83 | 🔬 Exploratory |
+| Llama 3.3 70B | 74.6% | 81.8% | 77.9% | 78.9% | $0.00 | ✅ Complete |
 
 ### 4.2 Claude Sonnet 4.5 — Notable Results
 
@@ -168,18 +166,33 @@ Claude's P3 (88.5%) represents the best matched accuracy of any pure-API system 
 
 ### 4.2.1 Per-Class Metrics (P / R / F1)
 
-| Prompt | Ent P / R / F1 | Neu P / R / F1 | Con P / R / F1 |
-|--------|----------------|----------------|----------------|
-| P1_zero_shot     | 0.903 / 0.884 / 0.893 | 0.826 / 0.803 / 0.814 | 0.887 / 0.931 / 0.909 |
-| P2_zero_shot_def | 0.922 / 0.873 / 0.897 | 0.816 / 0.858 / 0.837 | 0.913 / 0.920 / 0.916 |
-| P3_few_shot      | 0.905 / 0.873 / 0.889 | 0.855 / 0.811 / 0.832 | 0.891 / 0.969 / 0.929 |
+| Prompt | Ent P / R / F1 | Neu P / R / F1 | Con P / R / F1 | Avg F1 |
+|--------|----------------|----------------|----------------|--------|
+| P1_zero_shot     | 0.903 / 0.884 / 0.893 | 0.826 / 0.803 / 0.814 | 0.887 / 0.931 / 0.909 | 0.872 |
+| P2_zero_shot_def | 0.922 / 0.873 / 0.897 | 0.816 / 0.858 / 0.837 | 0.913 / 0.920 / 0.916 | 0.883 |
+| P3_few_shot      | 0.905 / 0.873 / 0.889 | 0.855 / 0.811 / 0.832 | 0.891 / 0.969 / 0.929 | 0.883 |
+| P4_few_shot_cot  | 0.840 / 0.769 / 0.803 | 0.748 / 0.816 / 0.780 | 0.888 / 0.882 / 0.885 | 0.800 |
 
 ### 4.3 GPT-5 (o3-mini) — Reasoning-Centric Benchmark
 
 GPT-5 scored only 75.9% on P1 — below BERT-base (83.6%) and substantially below GPT-4o (84.0%). This is not a reasoning failure but a *format ambiguity* issue: o3-mini's internal chain-of-thought reasoning produces verbose outputs that are challenging for zero-shot parsers. However, as shown in P3 (80.0%), few-shot examples help ground the model's output. Given the high cost ($14.83/1k), this model is treated as a reasoning-frontier exploratory benchmark rather than a production candidate for NLI.
 
-### 4.4 Scoping Note: Claude P4 and Llama 3.3
-Claude P4 (Few-shot CoT) and Llama 3.3 (Large Scale) were scoped as secondary exploratory benchmarks. Claude P1–P3 already establishes a state-of-the-art accuracy ceiling (88.5%) for this study. Given the high token cost associated with verbalized reasoning on frontier models (as seen in Section 3.4), the P4 strategy was excluded from the final large-scale Claude evaluation to prioritize cost-efficiency. Similarly, Llama 3.3 was benchmarked only for zero-shot performance to establish open-source parity.
+### 4.4 Llama 3.3 70B — Open Source Baseline
+
+Llama 3.3 70B demonstrates consistent performance across all prompts, with P2 (zero-shot + definitions) achieving the highest accuracy (81.8%). Notably, the gap between P1 and P4 is only 4.3pp, indicating that Llama is highly robust to prompt variation.
+
+#### 4.4.1 Per-Class Metrics (P / R / F1)
+
+| Prompt | Ent P / R / F1 | Neu P / R / F1 | Con P / R / F1 | Avg F1 |
+|--------|----------------|----------------|----------------|--------|
+| P1_zero_shot     | 0.812 / 0.697 / 0.750 | 0.615 / 0.795 / 0.694 | 0.854 / 0.746 / 0.796 | 0.703 |
+| P2_zero_shot_def | 0.825 / 0.854 / 0.839 | 0.784 / 0.754 / 0.769 | 0.849 / 0.846 / 0.847 | 0.812 |
+| P3_few_shot      | 0.765 / 0.791 / 0.778 | 0.735 / 0.713 / 0.724 | 0.841 / 0.835 / 0.838 | 0.753 |
+| P4_few_shot_cot  | 0.785 / 0.806 / 0.795 | 0.744 / 0.713 / 0.728 | 0.840 / 0.849 / 0.845 | 0.770 |
+
+### 4.5 Evaluation Strategy: Claude P4 and Llama 3.3
+
+Claude P4 and all four Llama 3.3 prompts were evaluated on the full 800-sample matched test set. Claude P4 achieves 80.5% matched accuracy (F1 0.800), consistent with the pattern that CoT reasoning provides diminishing returns at higher base performance levels — a 7.5pp drop vs Claude P3 mirrors GPT-4o's −2pp P3→P4 gap but is amplified at Claude's higher accuracy ceiling. Llama 3.3 P2 (81.8%) is the strongest open-source result in this study, demonstrating that definition-guided prompting adds more value to smaller models than to frontier ones.
 
 ---
 

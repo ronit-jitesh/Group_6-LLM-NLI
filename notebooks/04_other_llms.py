@@ -435,28 +435,35 @@ def evaluate_model_results(df_results, model_name):
 
 
 def main():
-    # Load matched test set
     df_matched = pd.read_csv(os.path.join(DATA_DIR, "nli_test_800.csv"))
     print(f"Matched test set: {len(df_matched)} samples")
 
-    # ========================================================
-    # Claude Sonnet 4.5
-    # ========================================================
-    print("\n" + "=" * 60)
-    print("MODEL 2: Claude Sonnet 4.5")
-    print("=" * 60)
+    # GPT-5 (o3-mini)
+    print("\n" + "="*60 + "\nMODEL 1: GPT-5 (o3-mini)\n" + "="*60)
+    gpt5_path = os.path.join(RESULTS_DIR, "api_results_gpt5.csv")
+    try:
+        df_gpt5 = run_model(df_matched, call_gpt5, "gpt5_o3mini", gpt5_path)
+        evaluate_model_results(df_gpt5, "GPT-5 (o3-mini)")
+    except Exception as e:
+        print(f"⚠️ GPT-5 failed: {e}")
 
+    # Claude Sonnet 4.5
+    print("\n" + "="*60 + "\nMODEL 2: Claude Sonnet 4.5\n" + "="*60)
     claude_path = os.path.join(RESULTS_DIR, "api_results_claude.csv")
     try:
         df_claude = run_model(df_matched, call_claude, "claude_sonnet", claude_path)
         evaluate_model_results(df_claude, "Claude Sonnet 4.5")
     except Exception as e:
         print(f"⚠️ Claude failed: {e}")
-        print("  Ensure ANTHROPIC_API_KEY is set in .env")
 
-    print("\n" + "=" * 60)
-    print("CLAUDE COMPLETE ✅")
-    print("=" * 60)
+    # Llama 3.3 70B (Groq)
+    print("\n" + "="*60 + "\nMODEL 3: Llama 3.3 70B (Groq)\n" + "="*60)
+    llama_path = os.path.join(RESULTS_DIR, "api_results_llama.csv")
+    try:
+        df_llama = run_model(df_matched, call_llama_groq, "llama_3.3_70b", llama_path)
+        evaluate_model_results(df_llama, "Llama 3.3 70B")
+    except Exception as e:
+        print(f"⚠️ Llama failed: {e}")
 
 
 if __name__ == "__main__":

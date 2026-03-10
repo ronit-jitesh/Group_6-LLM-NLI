@@ -20,8 +20,12 @@ from sklearn.model_selection import train_test_split
 # Configuration
 # ============================================================
 SEED = 42
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-MULTINLI_DIR = "/Users/ronitjitesh/Downloads/LLM/NLI/multinli_1.0"
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(PROJECT_DIR, "data")
+MULTINLI_DIR = os.environ.get(
+    "MULTINLI_DIR",
+    os.path.join(os.path.dirname(PROJECT_DIR), "LLM/NLI/multinli_1.0")
+)
 
 MATCHED_FILE = os.path.join(MULTINLI_DIR, "multinli_1.0_dev_matched.jsonl")
 MISMATCHED_FILE = os.path.join(MULTINLI_DIR, "multinli_1.0_dev_mismatched.jsonl")

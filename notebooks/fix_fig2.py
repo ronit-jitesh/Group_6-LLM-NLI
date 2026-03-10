@@ -1,190 +1,214 @@
 #!/usr/bin/env python3
 """
-Fix fig2: Cost-Accuracy Pareto Frontier — label overlap in top-left cluster.
-
-Strategy:
-- Use adjustText library if available, else manual offsets per point
-- Widen figure, move legend inside top-right
-- Use short display labels for crowded hybrid cluster
+fix_fig2_final.py — Clean Cost-Accuracy Pareto Frontier
+Uses main plot + zoomed inset for the crowded hybrid top-left zone.
+All 10 system families, all data points, no overlapping labels.
 """
 
 import os
-import pandas as pd
-import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
+import numpy as np
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RESULTS_DIR = os.path.join(PROJECT_DIR, "results")
 FIGURES_DIR = os.path.join(PROJECT_DIR, "figures")
+os.makedirs(FIGURES_DIR, exist_ok=True)
+OUT = os.path.join(FIGURES_DIR, "fig2_cost_accuracy_frontier.png")
 
-# ── Hardcoded data (from confirmed results) ──────────────────────────────────
-# (system_label, cost_per_1k, accuracy, strategy_group)
+# ─── DATA ────────────────────────────────────────────────────────────────────
 POINTS = [
-    # Encoders — $0 cost
-    ("DeBERTa-base",    0.0,   0.9012, "Encoder"),
-    ("DeBERTa-large",   0.0,   0.9012, "Encoder"),
-
-    # GPT-4o prompts
-    ("GPT-4o P1",       0.204, 0.840,  "GPT-4o"),
-    ("GPT-4o P2",       0.272, 0.829,  "GPT-4o"),
-    ("GPT-4o P3",       0.375, 0.848,  "GPT-4o"),
-    ("GPT-4o P4",       0.407, 0.855,  "GPT-4o"),
-    ("GPT-4o P5",       3.52,  0.840,  "GPT-4o"),
-
-    # Claude
-    ("Claude P1",       0.31,  0.874,  "Claude Sonnet"),
-    ("Claude P2",       0.41,  0.884,  "Claude Sonnet"),
-    ("Claude P3",       2.235, 0.885,  "Claude Sonnet"),
-
-    # Hybrid v1 (DeBERTa-base + GPT-4o P3)
-    ("v1 θ=0.85",       0.009, 0.904,  "Hybrid v1"),
-    ("v1 θ=0.90 ★",     0.011, 0.9012, "Hybrid v1"),
-    ("v1 θ=0.95",       0.018, 0.898,  "Hybrid v1"),
-
-    # Hybrid v2 (DeBERTa-base + Claude P4)
-    ("v2 θ=0.85",       0.066, 0.902,  "Hybrid v2"),
-    ("v2 θ=0.90",       0.074, 0.9012, "Hybrid v2"),
-    ("v2 θ=0.95",       0.126, 0.896,  "Hybrid v2"),
-
-    # Hybrid v3 (DeBERTa-base + GPT-4o 32-shot)
-    ("v3 θ=0.85",       0.137, 0.900,  "Hybrid v3"),
-    ("v3 θ=0.90",       0.152, 0.899,  "Hybrid v3"),
-    ("v3 θ=0.95",       0.258, 0.894,  "Hybrid v3"),
-
-    # Hybrid v4 (DeBERTa-large + GPT-4o P3)  ← BEST
-    ("v4 θ=0.85",       0.006, 0.9050, "Hybrid v4 ⭐"),
-    ("v4 θ=0.90 ⭐",    0.007, 0.9062, "Hybrid v4 ⭐"),
-    ("v4 θ=0.95",       0.013, 0.9062, "Hybrid v4 ⭐"),
-
-    # Hybrid v5 (Ensemble)
-    ("v5 Ensemble",     0.288, 0.895,  "Hybrid v5"),
-
-    # GPT-5 (o3-mini)
-    ("GPT-5 P1",        14.83, 0.759,  "GPT-5 (o3-mini)"),
-    ("GPT-5 P3",        17.54, 0.800,  "GPT-5 (o3-mini)"),
+    # Encoders
+    ("DeBERTa-base",   0.000,  0.9012, "Encoder"),
+    ("DeBERTa-large",  0.000,  0.9012, "Encoder"),
+    # GPT-4o
+    ("GPT-4o P1",      0.204,  0.840,  "GPT-4o"),
+    ("GPT-4o P2",      0.272,  0.829,  "GPT-4o"),
+    ("GPT-4o P3",      0.375,  0.848,  "GPT-4o"),
+    ("GPT-4o P4",      0.407,  0.855,  "GPT-4o"),
+    ("GPT-4o P5",      3.520,  0.840,  "GPT-4o"),
+    # Claude (costs from cost_summary.csv)
+    ("Claude P1",      0.312,  0.874,  "Claude"),  # CSV: 0.312
+    ("Claude P2",      0.399,  0.884,  "Claude"),  # FIX 2: was 0.410, CSV: 0.399
+    ("Claude P3",      2.235,  0.885,  "Claude"),
+    ("Claude P4",      2.800,  0.805,  "Claude"),
+    # Llama
+    ("Llama P1",       0.000,  0.746,  "Llama 3.3"),
+    ("Llama P2",       0.000,  0.818,  "Llama 3.3"),
+    ("Llama P3",       0.000,  0.779,  "Llama 3.3"),
+    ("Llama P4",       0.000,  0.789,  "Llama 3.3"),
+    # GPT-5
+    ("GPT-5 P1",       14.83,  0.759,  "GPT-5"),
+    ("GPT-5 P3",       17.54,  0.841,  "GPT-5"),
+    ("GPT-5 P4",       17.54,  0.869,  "GPT-5"),
+    # Hybrid v1 (costs from cost_summary.csv)
+    ("v1 0.85",        0.009,  0.904,  "Hybrid v1"),   # CSV: 0.01187
+    ("v1 0.90",        0.013,  0.9012, "Hybrid v1"),   # FIX 2: was 0.011, CSV: 0.01326
+    ("v1 0.95",        0.023,  0.898,  "Hybrid v1"),   # CSV: 0.02291
+    # Hybrid v2
+    ("v2 0.85",        0.066,  0.902,  "Hybrid v2"),
+    ("v2 0.90",        0.074,  0.9012, "Hybrid v2"),
+    ("v2 0.95",        0.126,  0.896,  "Hybrid v2"),
+    # Hybrid v3
+    ("v3 0.85",        0.137,  0.900,  "Hybrid v3"),
+    ("v3 0.90",        0.152,  0.899,  "Hybrid v3"),
+    ("v3 0.95",        0.258,  0.894,  "Hybrid v3"),
+    # Hybrid v4 BEST
+    ("v4 0.85",        0.006,  0.9050, "Hybrid v4"),
+    ("v4 0.90 BEST",   0.007,  0.9062, "Hybrid v4"),
+    ("v4 0.95",        0.013,  0.9062, "Hybrid v4"),
+    # Hybrid v5
+    ("v5 Ensemble",    0.288,  0.895,  "Hybrid v5"),
 ]
 
-df = pd.DataFrame(POINTS, columns=["label", "cost", "accuracy", "group"])
-
-# ── Colour + marker per group ─────────────────────────────────────────────────
-GROUP_STYLE = {
-    "Encoder":         {"color": "#4878CF", "marker": "D", "zorder": 5},
-    "GPT-4o":          {"color": "#6ACC65", "marker": "s", "zorder": 4},
-    "Claude Sonnet":   {"color": "#D65F5F", "marker": "^", "zorder": 4},
-    "Hybrid v1":       {"color": "#B47CC7", "marker": "o", "zorder": 4},
-    "Hybrid v2":       {"color": "#C4AD66", "marker": "o", "zorder": 4},
-    "Hybrid v3":       {"color": "#77BEDB", "marker": "o", "zorder": 4},
-    "Hybrid v4 ⭐":    {"color": "#F28E2B", "marker": "*", "zorder": 6, "s": 220},
-    "Hybrid v5":       {"color": "#59A14F", "marker": "P", "zorder": 4},
-    "GPT-5 (o3-mini)": {"color": "#E15759", "marker": "X", "zorder": 3},
+STYLE = {
+    "Encoder":   {"c": "#2166AC", "m": "D", "s": 100},
+    "GPT-4o":    {"c": "#4DAC26", "m": "s", "s":  85},
+    "Claude":    {"c": "#D01C8B", "m": "^", "s":  95},
+    "Llama 3.3": {"c": "#F1A340", "m": "v", "s":  85},
+    "GPT-5":     {"c": "#9970AB", "m": "X", "s":  95},
+    "Hybrid v1": {"c": "#8DD3C7", "m": "o", "s":  75},
+    "Hybrid v2": {"c": "#BEBADA", "m": "o", "s":  75},
+    "Hybrid v3": {"c": "#80B1D3", "m": "o", "s":  75},
+    "Hybrid v4": {"c": "#F28E2B", "m": "*", "s": 230},
+    "Hybrid v5": {"c": "#33A02C", "m": "P", "s":  90},
 }
 
-# ── Manual label offsets (x_pt, y_pt) ─────────────────────────────────────────
-# Positive x = right, negative x = left; positive y = up, negative y = down
-OFFSETS = {
-    # Encoders — both at $0, stagger vertically
-    "DeBERTa-base":   (6,  -12),
-    "DeBERTa-large":  (6,   6),
+def plot_points(ax, points, fontsize=8.5, show_labels=True, zorder_base=3):
+    seen = set()
+    for lbl, cost, acc, grp in points:
+        st = STYLE[grp]
+        leg = grp if grp not in seen else "_nolegend_"
+        ax.scatter(cost, acc,
+                   c=st["c"], marker=st["m"], s=st["s"],
+                   label=leg, zorder=zorder_base + (2 if grp == "Hybrid v4" else 0),
+                   edgecolors="white", linewidths=0.5, alpha=0.93)
+        seen.add(grp)
 
-    # Hybrid v4 cluster (near $0, ~0.905–0.906)
-    "v4 θ=0.85":      (-70, -14),
-    "v4 θ=0.90 ⭐":   (-70,   6),
-    "v4 θ=0.95":      ( 6,  10),
+def add_labels_main(ax):
+    """Sparse labels on the main axis — only points outside the inset zone."""
+    label_cfg = {
+        # Encoders
+        "DeBERTa-base":   (0.000, 0.9012, -6,  -12, "right"),
+        "DeBERTa-large":  (0.000, 0.9012, -6,    8, "right"),
+        # Llama (all $0, low y)
+        "Llama P1":       (0.000, 0.746,   8,    0, "left"),
+        "Llama P2":       (0.000, 0.818,   8,    0, "left"),
+        "Llama P3":       (0.000, 0.779,   8,  -10, "left"),
+        "Llama P4":       (0.000, 0.789,   8,   10, "left"),
+        # GPT-4o
+        "GPT-4o P1":      (0.204, 0.840,   7,    8, "left"),
+        "GPT-4o P2":      (0.272, 0.829,   7,  -11, "left"),
+        "GPT-4o P3":      (0.375, 0.848,   7,    8, "left"),
+        "GPT-4o P4":      (0.407, 0.855,   7,  -11, "left"),
+        "GPT-4o P5":      (3.520, 0.840,   7,    8, "left"),
+        # Claude
+        "Claude P1":      (0.310, 0.874,   7,    8, "left"),
+        "Claude P2":      (0.399, 0.884,   7,  -11, "left"),  # FIX 2: cost corrected
+        "Claude P3":      (2.235, 0.885,   7,    8, "left"),
+        "Claude P4":      (2.800, 0.805,   7,    8, "left"),
+        # GPT-5
+        "GPT-5 P1":       (14.83, 0.759,   7,    8, "left"),
+        "GPT-5 P3":       (17.54, 0.841,   7,  -11, "left"),
+        "GPT-5 P4":       (17.54, 0.869,   7,    8, "left"),
+        # v5 (outside inset)
+        "v5 Ensemble":    (0.288, 0.895,   7,    8, "left"),
+    }
+    for name, (x, y, ox, oy, ha) in label_cfg.items():
+        ax.annotate(name, xy=(x, y), xytext=(ox, oy),
+                    textcoords="offset points", fontsize=8.5,
+                    ha=ha, va="center", color="#222")
 
-    # Hybrid v1 cluster (near $0.009–0.018, ~0.898–0.904)
-    "v1 θ=0.85":      ( 6,   8),
-    "v1 θ=0.90 ★":   ( 6,  -12),
-    "v1 θ=0.95":      ( 6,  -12),
+def add_labels_inset(axins):
+    """Dense labels inside the inset — hybrid cluster + best encoders."""
+    cfg = {
+        "DeBERTa-base":  (0.000, 0.9012,  5,  -11, "left"),
+        "DeBERTa-large": (0.000, 0.9012,  5,    8, "left"),
+        "v4 0.85":       (0.006, 0.9050, -5,  -11, "right"),
+        "v4 0.90 BEST":  (0.007, 0.9062, -5,    8, "right"),
+        "v4 0.95":       (0.013, 0.9062,  5,    8, "left"),
+        "v1 0.85":       (0.009, 0.904,   5,    8, "left"),
+        "v1 0.90":       (0.013, 0.9012,  5,  -11, "left"),  # FIX 2: cost corrected
+        "v1 0.95":       (0.023, 0.898,   5,    8, "left"),  # FIX 2: cost corrected
+        "v2 0.85":       (0.066, 0.902,   5,    8, "left"),
+        "v2 0.90":       (0.074, 0.9012,  5,  -11, "left"),
+        "v2 0.95":       (0.126, 0.896,   5,    8, "left"),
+        "v3 0.85":       (0.137, 0.900,   5,    8, "left"),
+        "v3 0.90":       (0.152, 0.899,   5,  -11, "left"),
+        "v3 0.95":       (0.258, 0.894,   5,    8, "left"),
+        "v5 Ensemble":   (0.288, 0.895,   5,  -11, "left"),
+    }
+    for name, (x, y, ox, oy, ha) in cfg.items():
+        axins.annotate(name, xy=(x, y), xytext=(ox, oy),
+                       textcoords="offset points", fontsize=7.5,
+                       ha=ha, va="center", color="#111")
 
-    # Hybrid v2 cluster
-    "v2 θ=0.85":      (-62, -14),
-    "v2 θ=0.90":      ( 6,   6),
-    "v2 θ=0.95":      ( 6,  -12),
+# ─── MAIN FIGURE ─────────────────────────────────────────────────────────────
+plt.style.use("seaborn-v0_8-whitegrid")
+fig, ax = plt.subplots(figsize=(15, 8.5))
 
-    # Hybrid v3 cluster
-    "v3 θ=0.85":      ( 6,   6),
-    "v3 θ=0.90":      ( 6,  -12),
-    "v3 θ=0.95":      ( 6,   6),
+# Plot all points on main
+plot_points(ax, POINTS, show_labels=True)
 
-    # GPT-4o
-    "GPT-4o P1":      ( 6,  -14),
-    "GPT-4o P2":      ( 6,    6),
-    "GPT-4o P3":      ( 6,    6),
-    "GPT-4o P4":      ( 6,  -14),
-    "GPT-4o P5":      ( 6,    6),
+# Pareto frontier
+ax.plot([0.000, 0.007], [0.9012, 0.9062],
+        color="#F28E2B", lw=1.5, ls="--", alpha=0.65, label="Pareto frontier")
 
-    # Claude
-    "Claude P1":      ( 6,    6),
-    "Claude P2":      ( 6,  -14),
-    "Claude P3":      ( 6,    6),
+# Reference lines
+ax.axhline(0.333, color="gray", ls=":", lw=0.8, alpha=0.4)
+ax.text(15, 0.337, "Random (33.3%)", fontsize=7.5, color="gray")
+ax.axhline(0.9062, color="#F28E2B", ls=":", lw=0.8, alpha=0.35)
+ax.text(15, 0.908, "Best: 90.62% (v4)", fontsize=7.5, color="#F28E2B")
 
-    # GPT-5
-    "GPT-5 P1":       ( 6,    6),
-    "GPT-5 P3":       ( 6,  -14),
+# Main axis labels
+add_labels_main(ax)
 
-    # v5
-    "v5 Ensemble":    ( 6,    6),
-}
-
-fig, ax = plt.subplots(figsize=(13, 7.5))
-
-# Plot each group
-plotted_groups = set()
-for _, row in df.iterrows():
-    g = row["group"]
-    style = GROUP_STYLE[g]
-    s = style.get("s", 100)
-    label_kwarg = g if g not in plotted_groups else "_nolegend_"
-    ax.scatter(
-        row["cost"], row["accuracy"],
-        color=style["color"], marker=style["marker"],
-        s=s, zorder=style["zorder"],
-        label=label_kwarg, edgecolors="white", linewidths=0.4
-    )
-    plotted_groups.add(g)
-
-# Annotate with per-point offsets
-for _, row in df.iterrows():
-    ox, oy = OFFSETS.get(row["label"], (6, 6))
-    ax.annotate(
-        row["label"],
-        xy=(row["cost"], row["accuracy"]),
-        xytext=(ox, oy),
-        textcoords="offset points",
-        fontsize=8.2,
-        ha="left" if ox >= 0 else "right",
-        va="center",
-        arrowprops=dict(arrowstyle="-", color="#aaaaaa", lw=0.5)
-        if abs(ox) > 20 else None,
-    )
-
-# Pareto frontier line (just top-3)
-pareto = [(0.0, 0.9012), (0.007, 0.9062)]
-px, py = zip(*pareto)
-ax.plot(px, py, color="#F28E2B", linewidth=1.2, linestyle="--",
-        alpha=0.6, zorder=2, label="Pareto frontier")
-
-ax.set_xscale("symlog", linthresh=0.01)
+ax.set_xscale("symlog", linthresh=0.005)
 ax.xaxis.set_major_formatter(mticker.FuncFormatter(
-    lambda x, _: f"${x:.2f}" if 0 < x < 1 else (f"${int(x)}" if x >= 1 else "$0")
+    lambda x, _: "$0" if x == 0 else (
+        f"${x:.3f}" if 0 < x < 0.05 else (
+            f"${x:.2f}" if x < 1 else f"${x:.0f}"
+        )
+    )
 ))
-ax.set_xticks([0, 0.01, 0.1, 0.5, 1, 5, 20])
-
-ax.set_ylim(0.74, 0.915)
+ax.set_xticks([0, 0.007, 0.05, 0.1, 0.3, 0.5, 1, 3, 5, 15, 20])
+ax.set_ylim(0.725, 0.928)
+ax.set_xlim(-0.003, 22)
 ax.set_xlabel("Cost per 1,000 queries (USD)", fontsize=11)
-ax.set_ylabel("Accuracy — Matched Test Set (800)", fontsize=11)
-ax.set_title("Cost-Accuracy Pareto Frontier", fontsize=13, pad=12)
+ax.set_ylabel("Accuracy — Matched Test Set (800 samples)", fontsize=11)
+ax.set_title("Cost-Accuracy Pareto Frontier  (All 10 system families · MultiNLI Matched)",
+             fontsize=13, pad=12)
+ax.legend(title="System Family", fontsize=8.5, title_fontsize=9.5,
+          loc="lower right", framealpha=0.93, edgecolor="#ccc")
+ax.grid(True, which="both", ls=":", alpha=0.3)
 
-ax.legend(title="System", fontsize=8.5, title_fontsize=9,
-          loc="lower right", framealpha=0.9)
+# ─── INSET — zoomed hybrid cluster ───────────────────────────────────────────
+axins = ax.inset_axes([0.03, 0.60, 0.40, 0.37])  # [left, bottom, width, height] in axes coords
 
-ax.grid(True, which="both", linestyle=":", alpha=0.35)
-plt.tight_layout()
+plot_points(axins, POINTS, fontsize=7.5, show_labels=False, zorder_base=3)
+add_labels_inset(axins)
 
-out = os.path.join(FIGURES_DIR, "fig2_cost_accuracy_frontier.png")
-plt.savefig(out, dpi=300, bbox_inches="tight")
+# Pareto line in inset
+axins.plot([0.000, 0.007], [0.9012, 0.9062],
+           color="#F28E2B", lw=1.2, ls="--", alpha=0.65)
+
+axins.set_xscale("symlog", linthresh=0.003)
+axins.xaxis.set_major_formatter(mticker.FuncFormatter(
+    lambda x, _: "$0" if x == 0 else f"${x:.3f}"
+))
+axins.set_xticks([0, 0.007, 0.02, 0.07, 0.15, 0.30])
+axins.set_xlim(-0.001, 0.32)
+axins.set_ylim(0.888, 0.912)
+axins.tick_params(labelsize=7)
+axins.set_title("Hybrid cluster (zoomed)", fontsize=8, pad=4)
+axins.grid(True, which="both", ls=":", alpha=0.3)
+
+# Inset border box on main
+mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="#888", lw=0.8, alpha=0.6)
+
+plt.subplots_adjust(left=0.07, right=0.97, top=0.93, bottom=0.09)
+plt.savefig(OUT, dpi=300, bbox_inches="tight")
 plt.close()
-print(f"Saved: {out}")
+print(f"Saved: {OUT}")
