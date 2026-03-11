@@ -91,7 +91,7 @@ def plot_strategy_accuracy_bar(df_cost):
     # --- Encoders (from CSV) ---
     df_enc_m = safe_load("encoder_predictions_matched.csv")
     if not df_enc_m.empty:
-        for model in ["bert_base", "deberta_v3_small", "roberta_base", "deberta_v3_base"]:
+        for model in ["bert_base", "deberta_v3_small", "roberta_base", "deberta_v3_base", "deberta_v3_large"]:
             acc = accuracy_score(df_enc_m["label_text"], df_enc_m[f"{model}_pred"])
             name = model.replace("_", "-").title().replace("V3", "v3")
             if "Deberta" in name:
@@ -237,6 +237,12 @@ def plot_strategy_accuracy_bar(df_cost):
 def plot_cost_accuracy_frontier(df_cost):
     if df_cost.empty:
         return
+        
+    out_path = os.path.join(FIGURES_DIR, "fig2_cost_accuracy_frontier.png")
+    if os.path.exists(out_path):
+        print(f"  [SKIP] {out_path} already exists. Skipping fallback generation to preserve publication version.")
+        return
+        
     print("Generating Fig 2 (fallback): Cost-Accuracy Frontier...")
 
     accuracies = {}
@@ -349,11 +355,23 @@ def plot_matched_vs_mismatched():
             {"System": "DeBERTa-v3-base", "Set": "Mismatched", "Accuracy": c2},
         ]
 
-    # GPT-4o P4
+    # GPT-4o P1 and P4
     df_gpt4o    = safe_load("api_results_gpt4o.csv")
     df_gpt4o_mm = safe_load("api_results_gpt4o_mm.csv")
     if not df_gpt4o.empty and not df_gpt4o_mm.empty:
-        m  = df_gpt4o[df_gpt4o["prompt"] == "P4_few_shot_cot"]
+        # P1 (zero-shot)
+        m_p1  = df_gpt4o[df_gpt4o["prompt"] == "P1_zero_shot"]
+        mm_p1 = df_gpt4o_mm[df_gpt4o_mm["prompt"] == "P1_zero_shot"]
+        if len(m_p1) > 0 and len(mm_p1) > 0:
+            data += [
+                {"System": "GPT-4o P1 (ZS)", "Set": "Matched",
+                 "Accuracy": accuracy_score(m_p1["label_true"],  m_p1["predicted_label"])},
+                {"System": "GPT-4o P1 (ZS)", "Set": "Mismatched",
+                 "Accuracy": accuracy_score(mm_p1["label_true"], mm_p1["predicted_label"])},
+            ]
+            
+        # P4 (CoT)
+        m_p4  = df_gpt4o[df_gpt4o["prompt"] == "P4_few_shot_cot"]
         mm = df_gpt4o_mm[df_gpt4o_mm["prompt"] == "P4_few_shot_cot"]
         if len(m) > 0 and len(mm) > 0:
             data += [

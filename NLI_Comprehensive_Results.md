@@ -609,6 +609,11 @@ Run scripts in this order:
 | Fig 8b | fig8b_cm_hybrid_v3.png | Hybrid v3 confusion matrix |
 | Fig 9 | fig9_genre_heatmap.png | Genre × system accuracy heatmap |
 | Fig 10 | fig10_hybrid_threshold.png | Threshold vs accuracy/API% dual-axis |
+| Fig 11 | fig11_ensemble_breakdown.png | Ensemble gate accuracy breakdown |
+| Fig 12 | fig12_gating_comparison.png | Gating strategy accuracy comparison |
+| Fig 13 | fig13_classification_report_heatmap.png | Per-class F1 heatmap across all models |
+| Fig 14 | fig14_genre_label_matrix.png | Genre × Label accuracy matrix |
+| Fig 15 | fig15_per_class_bar_all_models.png | Per-class F1 bar charts for key models |
 
 ## Appendix C — Environment and Reproducibility
 
