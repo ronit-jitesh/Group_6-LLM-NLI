@@ -185,7 +185,7 @@ Claude's P3 (88.5%) represents the best matched accuracy
 
 ### 4.3 GPT-5 (o3-mini) — Reasoning-Centric Benchmark
 
-GPT-5 scored only 75.9% on P1 — below BERT-base (83.6%) and substantially below GPT-4o (84.0%). This is not a reasoning failure but a *format ambiguity* issue: o3-mini's internal chain-of-thought reasoning produces verbose outputs that are challenging for zero-shot parsers. However, as shown in P3 (80.0%), few-shot examples help ground the model's output. Given the high cost ($14.83/1k), this model is treated as a reasoning-frontier exploratory benchmark rather than a production candidate for NLI.
+GPT-5 scored only 75.9% on P1 — below BERT-base (83.6%) and substantially below GPT-4o (84.0%). This is not a reasoning failure but a *format ambiguity* issue: o3-mini's internal chain-of-thought reasoning produces verbose outputs that are challenging for zero-shot parsers. However, as shown in P3 (84.1%), few-shot examples help ground the model's output. Given the high cost ($14.83/1k), this model is treated as a reasoning-frontier exploratory benchmark rather than a production candidate for NLI.
 
 ### 4.4 Llama 3.3 70B — Open Source Baseline
 
@@ -225,7 +225,7 @@ The hybrid gatekeeper routes each query through a local encoder first. If the en
 | Threshold | Matched Acc | Mismatched Acc | API % | Cost/1k | Errors |
 |-----------|-------------|----------------|-------|---------|--------|
 | θ=0.85 | 90.4% | — | 3.4% | $0.009 | ~77 |
-| **θ=0.90** | **90.1%** | **91.3%** | 3.8% | $0.011 | 79 |
+| **θ=0.90** | **90.1%** | **91.3%** | 3.8% | $0.013 | 79 |
 | θ=0.95 | 89.8% | — | 6.4% | $0.018 | ~82 |
 
 *v1 at θ=0.90 achieves the **best mismatched accuracy of any system (91.3%)**. GPT-4o handles 30 low-confidence samples and improves cross-genre performance without degrading matched accuracy.*
@@ -270,7 +270,7 @@ The hybrid gatekeeper routes each query through a local encoder first. If the en
 | DeBERTa-base     | 0.944 / 0.894 / 0.919 | 0.830 / 0.886 / 0.857 | 0.931 / 0.924 / 0.927 |
 | Hybrid v1 (0.9)  | 0.937 / 0.894 / 0.915 | 0.840 / 0.870 / 0.855 | 0.925 / 0.939 / 0.932 |
 | Hybrid v2 (0.9)  | 0.938 / 0.898 / 0.917 | 0.843 / 0.866 / 0.854 | 0.921 / 0.939 / 0.930 |
-| Hybrid v4 (0.9)  | 0.966 / 0.901 / 0.933 | 0.844 / 0.877 / 0.860 | 0.911 / 0.943 / 0.927 |
+| Hybrid v4 (0.9)  | 0.966 / 0.901 / 0.933 | 0.844 / 0.874 / 0.859 | 0.911 / 0.943 / 0.927 |
 | Hybrid v5 Ens    | 0.954 / 0.901 / 0.927 | 0.848 / 0.926 / 0.885 | 0.963 / 0.936 / 0.949 |
 
 ### 5.6 Hybrid v5 — 3-DeBERTa Ensemble Gate + GPT-4o P4 (CoT) ⭐ KEY INSIGHT
@@ -288,9 +288,9 @@ The hybrid gatekeeper routes each query through a local encoder first. If the en
 | System | Accuracy on 100 escalated rows |
 |--------|-------------------------------|
 | DeBERTa-v3-base (alone) | 56% |
-| GPT-4o P4 (fallback) | **51%** — barely above random |
+| GPT-4o P4 (fallback) | **63%** — (compared to 51% pre-patch; unknowns resolved via majority vote) |
 
-The disagreement-gated rows are not simply difficult — they are **label-ambiguous at the annotation level**. Even GPT-4o scores only 51% on them, confirming the ceiling is in the data itself, not the models. This is a fundamentally different finding from confidence-gated uncertainty (where GPT-4o scores ~85% on the escalated rows in v1-v4), because:
+The disagreement-gated rows are not simply difficult — they are **label-ambiguous at the annotation level**. Even after resolving parse failures, GPT-4o scores only 63% on them, confirming the ceiling is in the data itself, not the models. This is a fundamentally different finding from confidence-gated uncertainty (where GPT-4o scores ~85% on the escalated rows in v1-v4), because:
 
 - **Confidence gating** identifies samples where the encoder is *uncertain* — LLMs genuinely help here.
 - **Ensemble disagreement gating** identifies samples where models *actively conflict* — these are cases with genuine semantic ambiguity that no current model resolves reliably.
@@ -500,7 +500,7 @@ This study is the first to directly compare confidence-threshold gating and ense
 
 **Confidence gating** (v1–v4): Escalates samples where the encoder is uncertain. The escalated rows are tractable for LLMs — GPT-4o scores ~85% on them, adding genuine value. This is the operationally recommended approach.
 
-**Ensemble disagreement gating** (v5): Escalates samples where multiple strong encoders actively disagree. These rows are not uncertain — the models are highly confident in *different* answers. This gating strategy identifies annotation ambiguity rather than model uncertainty, and the LLM fallback cannot rescue genuinely ambiguous samples (51% accuracy on escalated rows). Ensemble gating has high diagnostic value — it surfaces the inherent noise floor in the dataset — but lower operational value compared to confidence gating.
+**Ensemble disagreement gating** (v5): Escalates samples where multiple strong encoders actively disagree. These rows are not uncertain — the models are highly confident in *different* answers. This gating strategy identifies annotation ambiguity rather than model uncertainty, and the LLM fallback cannot rescue genuinely ambiguous samples (63% accuracy on escalated rows after resolving parse failures). Ensemble gating has high diagnostic value — it surfaces the inherent noise floor in the dataset — but lower operational value compared to confidence gating.
 
 The practical implication: in production systems, **confidence gating is superior for accuracy**; ensemble gating is superior for **data quality auditing** — identifying the samples that should be re-annotated or flagged for human review.
 
@@ -528,7 +528,7 @@ Our DeBERTa-v3-base result of 90.12% is consistent with published base-model ben
 3. **Static few-shot examples**: P3/P4 examples were selected once from the dev set. Dynamic example selection (retrieving the most semantically similar examples per query) could improve accuracy further.
 4. **Scoping of Claude P4 and Llama**: Claude P1–P3 establishes the performance frontier for this study. The P4 (CoT) strategy and Llama 3.3 were treated as exploratory benchmarks; standalone P4 was excluded from the final results to prioritize cost-efficiency, as the accuracy gains were expected to be marginal relative to the 6× cost premium observed in GPT-4o.
 5. **Token pricing volatility**: Cost estimates use 2026 list prices; enterprise pricing tiers may differ significantly.
-6. **Hybrid v5 parse recovery**: 30 GPT-4o output labels in hybrid v5 required post-hoc resolution (10 via majority vote of the three DeBERTa encoder predictions, 1 via DeBERTa-base fallback) due to verbose CoT parse failures. Final metrics reflect the fully resolved 800/400 row dataset.
+6. **Hybrid v5 parse recovery**: 30 GPT-4o output labels in hybrid v5 required post-hoc resolution due to verbose CoT parse failures: 19 via API retry, 10 via majority vote of the three DeBERTa encoder predictions, and 1 via DeBERTa-base fallback for a three-way tie. Final metrics reflect the fully resolved 800/400 row dataset.
 
 ---
 

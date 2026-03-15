@@ -127,6 +127,17 @@ if not df_v1.empty:
         )
     print("Hybrid v1: classification report computed")
 
+# --- Hybrid v5 (ensemble gate — best cross-genre) ---
+df_v5 = safe_load("hybrid_v5_results.csv")
+if not df_v5.empty:
+    sub = df_v5[df_v5["set"] == "matched"]
+    if not sub.empty:
+        all_reports += get_classification_report(
+            sub["label_true"], sub["label_pred"], "Hybrid v5 Ensemble"
+        )
+    print("Hybrid v5: classification report computed")
+
+
 # Save
 df_reports = pd.DataFrame(all_reports)
 if not df_reports.empty:

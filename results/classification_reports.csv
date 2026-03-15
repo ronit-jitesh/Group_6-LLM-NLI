@@ -47,3 +47,6 @@ Hybrid v4 θ=0.90,contradiction,0.9114,0.9427,0.9268,262
 Hybrid v1 θ=0.90,entailment,0.9373,0.8944,0.9153,284
 Hybrid v1 θ=0.90,neutral,0.8403,0.8701,0.8549,254
 Hybrid v1 θ=0.90,contradiction,0.9248,0.9389,0.9318,262
+Hybrid v5 Ensemble,entailment,0.9476,0.8908,0.9183,284
+Hybrid v5 Ensemble,neutral,0.8364,0.9055,0.8696,254
+Hybrid v5 Ensemble,contradiction,0.9496,0.9351,0.9423,262
