@@ -1,11 +1,11 @@
-# NLI Classification — Comprehensive Results & Report
+# NLI Classification -- Comprehensive Results & Report
 **University of Edinburgh | MSc Business Analytics | LLM-based NLP | Seed: 42**
 
 ---
 
 ## Executive Summary
 
-This project investigates Natural Language Inference (NLI) classification using MultiNLI, comparing five encoder architectures, four LLM families across four prompt strategies, and five hybrid gatekeeper configurations. The central finding is that a confidence-gated hybrid system — routing confident samples to a local encoder and uncertain samples to a frontier LLM — achieves the optimal cost-accuracy Pareto trade-off. Hybrid v4 (DeBERTa-v3-large gate + GPT-4o fallback) delivers **90.62% matched accuracy at $0.007 per 1,000 queries**, outperforming both the pure encoder (90.12%) and pure API approaches (85.5%) while reducing API expenditure by 98%. A novel ensemble gating approach (Hybrid v5) reveals that **87.5% of test samples are unanimously predicted at 95.0% accuracy**, with the remaining 12.5% representing genuinely label-ambiguous cases where even GPT-4o scores only 63% — demonstrating an inherent annotation ceiling rather than a modelling failure. After resolving all GPT-4o parse failures via majority vote, Hybrid v5 achieves **91.0% matched and 92.5% mismatched accuracy**, making it the strongest cross-genre system in this study.
+We evaluated Natural Language Inference (NLI) classification on MultiNLI, comparing five encoder architectures, four LLM families across four prompt strategies, and five hybrid gatekeeper configurations. The main takeaway is that a confidence-gated hybrid system -- where a local encoder handles easy cases and a frontier LLM handles the uncertain ones -- offers the best cost-accuracy trade-off overall. Hybrid v4 (DeBERTa-v3-large + GPT-4o) reached **90.62% matched accuracy at $0.007 per 1,000 queries**, beating both the pure encoder baseline (90.12%) and pure API approaches (85.5%) while cutting API spend by 98%. We also built a novel ensemble gating system (Hybrid v5), which showed that **87.5% of test samples are unanimously agreed on by all three encoders at 95.0% accuracy**, while the remaining 12.5% appear to be genuinely ambiguous -- even GPT-4o only scores 63% on them, which points to an annotation ceiling in the dataset rather than a model problem. After fixing GPT-4o parse failures via majority vote, Hybrid v5 reached **91.0% matched and 92.5% mismatched accuracy**, making it the strongest system in this study across both test conditions. The v5 result was unexpected -- we thought the annotation ambiguity finding would hurt accuracy, not boost it.
 
 ---
 
@@ -13,38 +13,42 @@ This project investigates Natural Language Inference (NLI) classification using 
 
 | # | Research Question | Section |
 |---|---|---|
-| RQ1 | How does NLI accuracy vary across prompt strategies from zero-shot to few-shot CoT, and is this consistent across LLM families? | §3, §4 |
-| RQ2 | What is the quantitative cost-accuracy Pareto frontier across encoder, API, and hybrid approaches? | §7 |
-| RQ3 | Can a confidence-gated hybrid system exceed the accuracy of either component alone, while maintaining cost efficiency? | §5 |
-| RQ4 | Do LLM-based approaches generalise better to unseen genres (mismatched) than fine-tuned encoders? | §6 |
+| RQ1 | How does NLI accuracy vary across prompt strategies from zero-shot to few-shot CoT, and is this consistent across LLM families? | S3, S4 |
+| RQ2 | What is the quantitative cost-accuracy Pareto frontier across encoder, API, and hybrid approaches? | S7 |
+| RQ3 | Can a confidence-gated hybrid system exceed the accuracy of either component alone, while maintaining cost efficiency? | S5 |
+| RQ4 | Do LLM-based approaches generalise better to unseen genres (mismatched) than fine-tuned encoders? | S6 |
 
 ---
 
-## Section 1 — Dataset and Methodology
+## Section 1 -- Dataset and Methodology
 
 ### 1.1 MultiNLI Structure
-MultiNLI provides two evaluation conditions. The **matched** set covers 5 genres seen during fine-tuning (fiction, government, slate, telephone, travel), testing in-distribution capability. The **mismatched** set covers 5 held-out genres (9/11 report, face-to-face, letters, Oxford non-fiction, Verbatim), testing cross-genre generalisation. Both sets are evaluated throughout to address RQ4.
+
+MultiNLI has two evaluation conditions. The **matched** set draws from 5 genres the models were fine-tuned on (fiction, government, slate, telephone, travel), testing in-distribution performance. The **mismatched** set draws from 5 held-out genres (9/11 report, face-to-face, letters, Oxford non-fiction, Verbatim), testing how well systems generalise to new writing styles. We evaluate on both throughout to address RQ4.
 
 ### 1.2 Sample Construction
-Stratified sampling (by label) generated three non-overlapping sets with zero pair-level contamination verified:
+
+We used stratified sampling by label to create three non-overlapping sets, and verified that no premise-hypothesis pair appears in more than one:
 
 | Set | Samples | Source | Purpose | 95% CI |
 |-----|---------|--------|---------|--------|
-| Dev | 200 | Matched | Prompt tuning | ±6.9% |
-| Test (Matched) | 800 | Matched | Primary evaluation | ±3.5% |
-| Test (Mismatched) | 400 | Mismatched | Generalisation evaluation | ±5.0% |
+| Dev | 200 | Matched | Prompt tuning | +/-6.9% |
+| Test (Matched) | 800 | Matched | Primary evaluation | +/-3.5% |
+| Test (Mismatched) | 400 | Mismatched | Generalisation evaluation | +/-5.0% |
 
-**Statistical justification**: 800 samples are sufficient to distinguish systems differing by >3% accuracy at the 95% confidence level. All reported differences exceeding ±4% are statistically significant.
+**Statistical justification**: 800 samples is enough to reliably distinguish systems that differ by more than 3% accuracy at the 95% confidence level. Any differences we report above 4pp can be treated as statistically meaningful.
 
 ### 1.3 Label Distribution
-Each test set is balanced at 33.3% per class (entailment, neutral, contradiction) via stratified sampling. Random baseline performance is precisely 33.3%.
+
+Each test set is balanced at roughly 33.3% per class (entailment, neutral, contradiction) through stratified sampling. A random baseline would score exactly 33.3%.
 
 ### 1.4 Reproducibility
-All experiments use `random_seed=42`. API calls use `temperature=0.0` and `seed=42` where supported. Encoder inference uses deterministic evaluation mode (`model.eval()`, `torch.no_grad()`).
+
+All experiments use `random_seed=42`. API calls use `temperature=0.0` and `seed=42` where the API supports it. Encoder inference runs in deterministic evaluation mode (`model.eval()`, `torch.no_grad()`).
 
 ---
 
-## Section 2 — Encoder Baselines
+## Section 2 -- Encoder Baselines
 
 ### 2.1 Results: Matched Test Set (800 samples)
 
@@ -56,47 +60,47 @@ All experiments use `random_seed=42`. API calls use `temperature=0.0` and `seed=
 | DeBERTa-v3-base  | 0.944 / 0.894 / 0.919 | 0.830 / 0.886 / 0.857 | 0.931 / 0.924 / 0.927 |
 | DeBERTa-v3-large | 0.955 / 0.894 / 0.924 | 0.834 / 0.870 / 0.852 | 0.914 / 0.939 / 0.927 |
 
-*P = Precision, R = Recall, F1 = F1-score per class. Neutral is consistently the weakest class across all models — lower Precision and Recall than Entailment or Contradiction — confirming that the neutral/entailment boundary is the primary source of classification error.*
+*P = Precision, R = Recall, F1 = F1-score per class. The neutral class is the weakest across all models -- both Precision and Recall are lower than for Entailment or Contradiction -- which suggests the neutral/entailment boundary is where most errors happen.*
 
-*Note: DeBERTa-v3-large and base produce identical matched accuracy (90.12%) despite disagreeing on 52 individual samples (6.5%). They make an equal number of right-for-wrong and wrong-for-right swaps (22 each), confirming that scale alone does not improve accuracy on this 800-sample subset.*
+*Interestingly, DeBERTa-v3-large and base end up at the same overall matched accuracy (90.12%) even though they disagree on 52 individual samples (6.5%). They swap roughly the same number of right-for-wrong and wrong-for-right predictions (22 each), so scale alone does not improve accuracy on this test set.*
 
 ### 2.2 Results: Mismatched Test Set (400 samples)
 
 | Model | Accuracy (MM) | Accuracy (M) | Delta |
 |-------|--------------|--------------|-------|
-| BERT-base | 82.2% | 83.6% | −1.4% |
+| BERT-base | 82.2% | 83.6% | -1.4% |
 | DeBERTa-v3-small | 89.2% | 87.4% | **+1.8%** |
-| RoBERTa-base | 87.8% | 88.6% | −0.8% |
+| RoBERTa-base | 87.8% | 88.6% | -0.8% |
 | DeBERTa-v3-base | 90.8% | 90.1% | **+0.7%** |
-| DeBERTa-v3-large | 89.5% | 90.1% | −0.6% |
+| DeBERTa-v3-large | 89.5% | 90.1% | -0.6% |
 
-*Observation: DeBERTa-v3 models (small and base) improve on mismatched, suggesting the disentangled attention mechanism generalises well to syntactically diverse genres. BERT-base shows the largest degradation.*
+*The DeBERTa-v3 models (small and base) actually do better on mismatched, which suggests the disentangled attention mechanism handles genre shifts well. BERT-base drops the most.*
 
 ### 2.3 Per-Genre Accuracy (Matched, DeBERTa-v3-base)
 
-| Genre | DeBERTa-v3-base | Hybrid v2 (θ=0.90) | Delta |
+| Genre | DeBERTa-v3-base | Hybrid v2 (theta=0.90) | Delta |
 |-------|-----------------|-------------------|-------|
 | Fiction | 87.8% | 87.8% | 0.0% |
 | Government | 91.4% | 92.0% | +0.6% |
 | Slate | 89.7% | 90.3% | +0.6% |
-| Telephone | 90.2% | 89.0% | −1.2% |
+| Telephone | 90.2% | 89.0% | -1.2% |
 | Travel | 91.3% | 91.3% | 0.0% |
 
-*Hybrid v2 adds value on formal genres (Government, Slate) where GPT-4o's contextual reasoning handles edge cases. Telephone transcripts are harder for LLMs due to disfluencies, explaining the −1.2% drop.*
+*Adding GPT-4o as a fallback helps on formal written genres (Government, Slate) where edge cases require more context. Telephone transcripts are harder for GPT-4o because of disfluencies and conversational fragments that do not appear in its few-shot examples.*
 
 ### 2.4 Confidence Threshold Analysis (DeBERTa-v3-base)
 
 | Threshold | Samples Covered | Coverage % | Accuracy at Threshold |
 |-----------|-----------------|------------|-----------------------|
-| ≥ 0.85 | 773 | 96.6% | 90.2% |
-| ≥ 0.90 | 770 | 96.2% | 90.1% |
-| ≥ 0.95 | 749 | 93.6% | 89.6% |
+| >= 0.85 | 773 | 96.6% | 90.2% |
+| >= 0.90 | 770 | 96.2% | 90.1% |
+| >= 0.95 | 749 | 93.6% | 89.6% |
 
-*The confidence score is a reliable signal: high-confidence samples (≥0.90) achieve the same 90.1% accuracy as the full set, confirming DeBERTa-v3-base is well-calibrated.*
+*The confidence scores are well-calibrated: samples above 0.90 confidence achieve the same 90.1% accuracy as the full test set, which means the model is not overconfident on its wrong predictions.*
 
 ---
 
-## Section 3 — GPT-4o Prompt Engineering (RQ1)
+## Section 3 -- GPT-4o Prompt Engineering (RQ1)
 
 ### 3.1 Prompt Strategy Comparison
 
@@ -106,24 +110,23 @@ All experiments use `random_seed=42`. API calls use `temperature=0.0` and `seed=
 | P2: Zero-shot + Definitions | Adds explicit entailment/neutral/contradiction definitions | 82.9% | 87.8% | 102 | $0.27 |
 | P3: Few-shot (3 examples) | 3 balanced in-context examples | 84.8% | 89.0% | 142 | $0.37 |
 | P4: Few-shot + CoT | Step-by-step reasoning before label | 85.5% | 90.0% | 156 | $0.41 |
-| P5: 32-shot | 32 curated examples from dev set | 84.0% | — | ~1,401 | $3.52 |
+| P5: 32-shot | 32 curated examples from dev set | 84.0% | -- | ~1,401 | $3.52 |
 
 ### 3.2 Prompt Design Rationale
 
-**P1 (Zero-shot)**: Minimal instruction to establish the baseline. Forces GPT-4o to rely purely on its pre-training knowledge of NLI.
+**P1 (Zero-shot)**: We kept this as minimal as possible to establish a clean baseline. The model has to rely entirely on what it already knows about NLI.
 
-**P2 (Zero-shot + Definitions)**: Adds explicit definitions to reduce ambiguity in the neutral/entailment boundary. Unexpectedly *decreases* matched accuracy (84.0% → 82.9%), suggesting definitions constrain GPT-4o's flexible reasoning and may cause over-application of the strict "necessarily TRUE" criterion.
+**P2 (Zero-shot + Definitions)**: Adding explicit label definitions was meant to reduce neutral/entailment confusion. It actually hurt matched accuracy (84.0% -> 82.9%), which suggests the strict "necessarily TRUE" framing over-constrains the model and causes it to downgrade borderline entailments to neutral.
 
-**P3 (Few-shot)**: Three balanced examples covering one instance of each label, with premises spanning different genre styles. Provides schema without constraining the reasoning path.
+**P3 (Few-shot)**: Three examples -- one per class -- drawn from different genre styles in the dev set. This gives the model a clear output format without locking in a rigid reasoning template.
 
-**P4 (CoT)**: Structured step-by-step reasoning with explicit "Step-by-step:" guidance before the label output. Best matched performance (85.5%).
+**P4 (CoT)**: We add a "Step-by-step:" prompt before the label. This gives the best matched accuracy (85.5%), but see the key finding below about mismatched performance.
 
-**P5 (32-shot)**: 32 manually selected dev-set examples. Marginal gain over P4 (+0% on matched) at 9× the token cost, confirming diminishing returns with example volume.
+**P5 (32-shot)**: 32 dev-set examples, manually selected for label and genre balance. No accuracy gain over P4 on matched, at 9x the token cost.
 
 ### 3.3 Key Finding: CoT Does Not Improve Cross-Genre Generalisation
 
-P4 (CoT) achieves the best matched accuracy (85.5%) but *underperforms* P1 (zero-shot) on mismatched (90.0% vs 90.5%). This counter-intuitive result has a clear explanation: the rigid step-by-step template calibrated on matched examples introduces format bias that degrades performance on syntactically unusual mismatched genres (Verbatim, face-to-face transcripts). P1's flexibility allows GPT-4o to adapt its reasoning style to each genre. This confirms the finding in Ye & Durrett (2022) that structured CoT explanations are unreliable when test distributions differ from the implicit training distribution of the prompts.
-
+P4 gets the best matched score (85.5%) but actually falls behind P1 on mismatched (90.0% vs 90.5%). The reason is that the step-by-step template was calibrated on matched-genre examples, so it introduces format bias when the model encounters unusual genres like Verbatim text or conversational transcripts. P1 has no fixed template, so the model adapts more freely. This matches the finding from Ye and Durrett (2022) that CoT-style explanations become unreliable when the test distribution shifts from the implicit distribution of the prompt.
 
 ### 3.3.1 Per-Class Metrics (P / R / F1)
 
@@ -142,26 +145,26 @@ P4 (CoT) achieves the best matched accuracy (85.5%) but *underperforms* P1 (zero
 | P4 | 156 | $0.41 | 85.5% | 208% |
 | P5 (32-shot) | 1,401 | $3.52 | 84.0% | 24% |
 
-P5 costs 17× more than P1 for *identical* matched accuracy. P4 costs 2× P1 for 1.5pp gain — marginally worth it for high-stakes classification but not at scale.
+P5 costs 17x more than P1 for identical matched accuracy. P4 costs twice as much as P1 for a 1.5pp gain -- potentially worth it for high-stakes use but not at scale.
 
 ---
 
-## Section 4 — LLM Comparison (GPT-5, Claude Sonnet, Llama 3.3)
+## Section 4 -- LLM Comparison (GPT-5, Claude Sonnet, Llama 3.3)
 
 ### 4.1 Model Comparison (Matched Test Set, 800 samples)
 
 | Model | P1 | P2 | P3 | P4 | Cost/1k (P1) | Status |
 |-------|----|----|----|----|-------------|--------|
-| GPT-4o | 84.0% | 82.9% | 84.8% | 85.5% | $0.20 | ✅ Optimal |
-| Claude Sonnet 4.5 | 87.4% | 88.4% | 88.5% | **80.5%** | $0.31 | 🎯 Frontier |
-| GPT-5 / o3-mini | 75.9% | 75.2% | 84.1% | 86.9% | $14.83 | 🔬 Exploratory |
-| Llama 3.3 70B | 74.6% | 81.8% | 77.9% | 78.9% | $0.00 | ✅ Complete |
+| GPT-4o | 84.0% | 82.9% | 84.8% | 85.5% | $0.20 | Optimal |
+| Claude Sonnet 4.5 | 87.4% | 88.4% | 88.5% | **80.5%** | $0.31 | Frontier |
+| GPT-5 / o3-mini | 75.9% | 75.2% | 84.1% | 86.9% | $14.83 | Exploratory |
+| Llama 3.3 70B | 74.6% | 81.8% | 77.9% | 78.9% | $0.00 | Complete |
 
-### 4.2 Claude Sonnet 4.5 — Notable Results
+### 4.2 Claude Sonnet 4.5 -- Notable Results
 
-Claude Sonnet P1 (87.4%) exceeds **all four GPT-4o prompt strategies** without any few-shot examples. This establishes Claude as the strongest standalone zero-shot classifier in this evaluation, likely due to its instruction-following precision and conservative handling of neutral cases.
+Claude Sonnet P1 (87.4%) beats all four GPT-4o prompt strategies without any examples at all, which was one of the more surprising results in this study. It seems Claude's instruction-following and its more conservative handling of neutral predictions give it an edge in zero-shot NLI.
 
-Claude's P3 (88.5%) represents the best matched accuracy of any pure-API system in this study, surpassing GPT-4o P4 (85.5%) by 3pp. Note that Claude P3 costs $2.23/1k vs GPT-4o P3 at $0.37/1k — the accuracy gain comes at a 6× cost premium.
+Claude's P3 (88.5%) is the best matched accuracy of any pure-API system we tested, beating GPT-4o P4 (85.5%) by 3pp. The catch is that Claude P3 costs $2.23/1k compared to GPT-4o P3 at $0.37/1k -- a 6x premium for that gain.
 
 ### 4.4 Per-Class Precision, Recall, F1 (Claude Sonnet, Matched)
 
@@ -171,8 +174,7 @@ Claude's P3 (88.5%) represents the best matched accuracy of any pure-API system 
 | P2: Zero-shot + Def | 88.4% | 0.883 | 0.922 / 0.873 / 0.897 | 0.816 / 0.858 / 0.837 | 0.913 / 0.920 / 0.916 |
 | P3: Few-shot | 88.5% | 0.883 | 0.905 / 0.873 / 0.889 | 0.855 / 0.811 / 0.832 | 0.891 / 0.969 / 0.929 |
 
-*Claude shows notably higher Neutral Precision than GPT-4o across all prompts, indicating fewer false-positive neutral predictions. The P3 gain over P1 is driven primarily by improved Entailment Recall (+3–4pp), where few-shot examples teach the model to commit to entailment on idiomatic paraphrases.*
-
+*Claude consistently achieves higher Neutral Precision than GPT-4o, meaning it produces fewer false-positive neutrals. The improvement from P1 to P3 is mainly in Entailment Recall (+3-4pp), where the examples seem to help the model commit to entailment on idiomatic paraphrases.*
 
 ### 4.2.1 Per-Class Metrics (P / R / F1)
 
@@ -183,13 +185,13 @@ Claude's P3 (88.5%) represents the best matched accuracy of any pure-API system 
 | P3_few_shot      | 0.905 / 0.873 / 0.889 | 0.855 / 0.811 / 0.832 | 0.891 / 0.969 / 0.929 | 0.883 |
 | P4_few_shot_cot  | 0.840 / 0.769 / 0.803 | 0.748 / 0.816 / 0.780 | 0.888 / 0.882 / 0.885 | 0.800 |
 
-### 4.3 GPT-5 (o3-mini) — Reasoning-Centric Benchmark
+### 4.3 GPT-5 (o3-mini) -- Reasoning-Centric Benchmark
 
-GPT-5 scored only 75.9% on P1 — below BERT-base (83.6%) and substantially below GPT-4o (84.0%). This is not a reasoning failure but a *format ambiguity* issue: o3-mini's internal chain-of-thought reasoning produces verbose outputs that are challenging for zero-shot parsers. However, as shown in P3 (84.1%), few-shot examples help ground the model's output. Given the high cost ($14.83/1k), this model is treated as a reasoning-frontier exploratory benchmark rather than a production candidate for NLI.
+GPT-5 came in at only 75.9% on P1 -- below BERT-base (83.6%) and well below GPT-4o (84.0%). This is not really a reasoning failure; it is more a parsing issue. o3-mini produces long internal reasoning traces that make its outputs hard to parse with a zero-shot label extractor. With P3 (84.1%), few-shot examples anchor the output format better. At $14.83/1k, this model is not a realistic option for NLI classification -- we included it mainly as a reasoning-frontier reference point.
 
-### 4.4 Llama 3.3 70B — Open Source Baseline
+### 4.4 Llama 3.3 70B -- Open Source Baseline
 
-Llama 3.3 70B demonstrates consistent performance across all prompts, with P2 (zero-shot + definitions) achieving the highest accuracy (81.8%). Notably, the gap between P1 and P4 is only 4.3pp, indicating that Llama is highly robust to prompt variation.
+Llama 3.3 70B performs consistently across all prompts, with P2 (zero-shot + definitions) giving the best result at 81.8%. The gap between P1 and P4 is only 4.3pp, which is smaller than for the other models and suggests Llama is less sensitive to prompt design. Since it runs via Groq at no cost, it provides a useful free baseline for comparison.
 
 #### 4.4.1 Per-Class Metrics (P / R / F1)
 
@@ -202,66 +204,65 @@ Llama 3.3 70B demonstrates consistent performance across all prompts, with P2 (z
 
 ### 4.5 Evaluation Strategy: Claude P4 and Llama 3.3
 
-Claude P4 and all four Llama 3.3 prompts were evaluated on the full 800-sample matched test set. Claude P4 achieves 80.5% matched accuracy (F1 0.800), consistent with the pattern that CoT reasoning provides diminishing returns at higher base performance levels — a 7.5pp drop vs Claude P3 mirrors GPT-4o's −2pp P3→P4 gap but is amplified at Claude's higher accuracy ceiling. Llama 3.3 P2 (81.8%) is the strongest open-source result in this study, demonstrating that definition-guided prompting adds more value to smaller models than to frontier ones.
+We ran Claude P4 and all four Llama 3.3 prompts on the full 800-sample matched test set. Claude P4 achieves 80.5% (F1 0.800), which is a surprisingly large drop from Claude P3 -- 7.5pp compared to GPT-4o's 2pp P3->P4 gap. This suggests CoT adds less value when the base accuracy is already high, possibly because the step-by-step template introduces more opportunities for error at Claude's performance level. Llama 3.3 P2 at 81.8% is the best open-source result in this study, and the fact that definitions help more than few-shot examples for Llama suggests smaller models gain more from explicit guidance than from examples alone.
 
 ---
 
-## Section 5 — Hybrid Gatekeeper Systems (RQ3) ⭐ HEADLINE
+## Section 5 -- Hybrid Gatekeeper Systems (RQ3) [HEADLINE]
 
 ### 5.1 Architecture Overview
 
-The hybrid gatekeeper routes each query through a local encoder first. If the encoder's softmax confidence exceeds threshold θ, the prediction is accepted at zero API cost. If confidence falls below θ, the sample is escalated to a frontier LLM. Five variants were evaluated:
+The gatekeeper works by running a local encoder first. If its softmax confidence exceeds a threshold theta, we accept the prediction at zero API cost. If confidence falls below theta, the sample goes to a frontier LLM. We tested five variants:
 
 | Version | Gate Signal | Gate Model | Fallback LLM | Prompt |
 |---------|-------------|------------|--------------|--------|
-| v1 | Confidence θ | DeBERTa-v3-base | GPT-4o | P3 (few-shot) |
-| v2 | Confidence θ | DeBERTa-v3-base | Claude Sonnet | P4 (CoT) |
-| v3 | Confidence θ | DeBERTa-v3-base | GPT-4o | P5 (32-shot) |
-| v4 | Confidence θ | DeBERTa-v3-**large** | GPT-4o | P3 (few-shot) |
-| v5 | **Ensemble disagreement** | 3× DeBERTa | GPT-4o | P4 (CoT) |
+| v1 | Confidence theta | DeBERTa-v3-base | GPT-4o | P3 (few-shot) |
+| v2 | Confidence theta | DeBERTa-v3-base | Claude Sonnet | P4 (CoT) |
+| v3 | Confidence theta | DeBERTa-v3-base | GPT-4o | P5 (32-shot) |
+| v4 | Confidence theta | DeBERTa-v3-**large** | GPT-4o | P3 (few-shot) |
+| v5 | **Ensemble disagreement** | 3x DeBERTa | GPT-4o | P4 (CoT) |
 
-### 5.2 Hybrid v1 — DeBERTa-v3-base + GPT-4o P3
-
-| Threshold | Matched Acc | Mismatched Acc | API % | Cost/1k | Errors |
-|-----------|-------------|----------------|-------|---------|--------|
-| θ=0.85 | 90.4% | — | 3.4% | $0.009 | ~77 |
-| **θ=0.90** | **90.1%** | **91.3%** | 3.8% | $0.013 | 79 |
-| θ=0.95 | 89.8% | — | 6.4% | $0.018 | ~82 |
-
-*v1 at θ=0.90 achieves the **best mismatched accuracy of any system (91.3%)**. GPT-4o handles 30 low-confidence samples and improves cross-genre performance without degrading matched accuracy.*
-
-### 5.3 Hybrid v2 — DeBERTa-v3-base + Claude Sonnet P4 (CoT)
+### 5.2 Hybrid v1 -- DeBERTa-v3-base + GPT-4o P3
 
 | Threshold | Matched Acc | Mismatched Acc | API % | Cost/1k | Errors |
 |-----------|-------------|----------------|-------|---------|--------|
-| θ=0.85 | 90.2% | — | 3.4% | $0.066 | ~78 |
-| **θ=0.90** | **90.1%** | **91.0%** | 3.8% | $0.074 | 79 |
-| θ=0.95 | 89.6% | — | 6.4% | $0.126 | ~83 |
+| theta=0.85 | 90.4% | -- | 3.4% | $0.009 | ~77 |
+| **theta=0.90** | **90.1%** | **91.3%** | 3.8% | $0.013 | 79 |
+| theta=0.95 | 89.8% | -- | 6.4% | $0.018 | ~82 |
 
-*v2 uses Claude Sonnet as the fallback and achieves comparable accuracy to v1 at 6× higher cost per 1k queries. The cost premium is justified only in applications requiring Claude's stronger reasoning on edge cases.*
+*v1 at theta=0.90 gives the **best mismatched accuracy among confidence-gated systems (91.3%)**. GPT-4o handles 30 low-confidence samples and genuinely improves cross-genre performance without hurting matched accuracy.*
 
-### 5.4 Hybrid v3 — DeBERTa-v3-base + GPT-4o 32-shot
+### 5.3 Hybrid v2 -- DeBERTa-v3-base + Claude Sonnet P4 (CoT)
+
+| Threshold | Matched Acc | Mismatched Acc | API % | Cost/1k | Errors |
+|-----------|-------------|----------------|-------|---------|--------|
+| theta=0.85 | 90.2% | -- | 3.4% | $0.066 | ~78 |
+| **theta=0.90** | **90.1%** | **91.0%** | 3.8% | $0.074 | 79 |
+| theta=0.95 | 89.6% | -- | 6.4% | $0.126 | ~83 |
+
+*v2 swaps in Claude Sonnet as the fallback and gets similar accuracy to v1 at about 6x the cost per 1k queries. The higher spend is only worth it in cases where Claude's reasoning is specifically needed for edge cases.*
+
+### 5.4 Hybrid v3 -- DeBERTa-v3-base + GPT-4o 32-shot
 
 | Threshold | Matched Acc | Mismatched Acc | API % | Cost/1k |
 |-----------|-------------|----------------|-------|---------|
-| θ=0.85 | 90.00% | 91.25% | 3.4% | $0.137 |
-| θ=0.90 | 89.88% | 91.00% | 3.8% | $0.152 |
-| θ=0.95 | 89.38% | 91.00% | 6.4% | $0.258 |
+| theta=0.85 | 90.00% | 91.25% | 3.4% | $0.137 |
+| theta=0.90 | 89.88% | 91.00% | 3.8% | $0.152 |
+| theta=0.95 | 89.38% | 91.00% | 6.4% | $0.258 |
 
-*32-shot adds marginal accuracy (+0.3pp vs P3) at 12× the cost. The diminishing returns from P3→P5 observed in §3 are reproduced here in the hybrid fallback context.*
+*The 32-shot fallback adds only marginal accuracy over P3 at 12x the cost. The same diminishing returns we saw in Section 3 appear again here.*
 
-### 5.5 Hybrid v4 — DeBERTa-v3-large + GPT-4o P3 ⭐ BEST MATCHED
+### 5.5 Hybrid v4 -- DeBERTa-v3-large + GPT-4o P3 [BEST COST-EFFICIENCY]
 
 | Threshold | Matched Acc | Mismatched Acc | API % | Cost/1k | Errors |
 |-----------|-------------|----------------|-------|---------|--------|
-| θ=0.85 | 90.50% | — | 1.6% | $0.006 | 76 |
-| **θ=0.90** | **90.62%** | **90.50%** | **2.0%** | **$0.007** | **75** |
-| θ=0.95 | 90.62% | — | 3.5% | $0.013 | 75 |
+| theta=0.85 | 90.50% | -- | 1.6% | $0.006 | 76 |
+| **theta=0.90** | **90.62%** | **90.50%** | **2.0%** | **$0.007** | **75** |
+| theta=0.95 | 90.62% | -- | 3.5% | $0.013 | 75 |
 
-*v4 achieves the **best matched accuracy (90.62%)** at the **lowest cost ($0.007/1k)**. The large encoder's higher confidence calibration means only 16 samples (2%) require API fallback, vs 30 (3.8%) for v1.*
+*v4 achieves the **best matched accuracy (90.62%)** at the **lowest cost ($0.007/1k)**. Using the large encoder as the gate means only 16 samples (2%) need an API call, compared to 30 (3.8%) for v1.*
 
-*Key insight: DeBERTa-v3-large and base are equally accurate at the aggregate level (90.12%), but the large model is more confident on its correct predictions and less confident on its errors. This better-calibrated uncertainty makes it a superior gatekeeper even without an aggregate accuracy advantage.*
-
+*The key observation here is that DeBERTa-v3-large and base are equally accurate overall (both 90.12%), but the large model is better calibrated -- it is more confident on its correct predictions and less confident on its wrong ones. That makes it a better gatekeeper even though it does not improve aggregate accuracy.*
 
 ### 5.5.1 Per-Class Metrics (P / R / F1)
 
@@ -273,29 +274,29 @@ The hybrid gatekeeper routes each query through a local encoder first. If the en
 | Hybrid v4 (0.9)  | 0.966 / 0.901 / 0.933 | 0.844 / 0.874 / 0.859 | 0.911 / 0.943 / 0.927 |
 | Hybrid v5 Ens    | 0.948 / 0.891 / 0.918 | 0.836 / 0.906 / 0.870 | 0.950 / 0.935 / 0.942 |
 
-### 5.6 Hybrid v5 — 3-DeBERTa Ensemble Gate + GPT-4o P4 (CoT) ⭐ KEY INSIGHT
+### 5.6 Hybrid v5 -- 3-DeBERTa Ensemble Gate + GPT-4o P4 (CoT) [KEY INSIGHT]
 
 | Set | Matched Acc | Mismatched Acc | Ensemble % | API % | Cost/1k |
 |-----|-------------|----------------|------------|-------|---------|
 | Results | **91.0%** | **92.5%** | 87.5% | 12.5% | $0.258 |
 
 **Gate statistics (matched, 800 samples):**
-- Unanimous (all 3 agree): 700 samples, 87.5% → 95.0% accuracy, $0 cost
-- Disagreement (any model differs): 100 samples, 12.5% → escalated to GPT-4o
+- Unanimous (all 3 agree): 700 samples, 87.5% -> 95.0% accuracy, $0 cost
+- Disagreement (any model differs): 100 samples, 12.5% -> escalated to GPT-4o
 
-**Critical finding — Genuine Label Ambiguity:**
+**Key finding -- Genuine Label Ambiguity:**
 
 | System | Accuracy on 100 escalated rows |
 |--------|-------------------------------|
 | DeBERTa-v3-base (alone) | 56% |
-| GPT-4o P4 (fallback) | **63%** — (compared to 51% pre-patch; unknowns resolved via majority vote) |
+| GPT-4o P4 (fallback) | **63%** -- (compared to 51% pre-patch; unknowns resolved via majority vote) |
 
-The disagreement-gated rows are not simply difficult — they are **label-ambiguous at the annotation level**. Even after resolving parse failures, GPT-4o scores only 63% on them, confirming the ceiling is in the data itself, not the models. This is a fundamentally different finding from confidence-gated uncertainty (where GPT-4o scores ~85% on the escalated rows in v1-v4), because:
+The disagreement rows are not just difficult -- they appear to be genuinely ambiguous at the annotation level. Even after fixing parse failures, GPT-4o only gets 63% on them, which tells us the problem is in the data rather than the models. This is a different situation from confidence-threshold gating:
 
-- **Confidence gating** identifies samples where the encoder is *uncertain* — LLMs genuinely help here.
-- **Ensemble disagreement gating** identifies samples where models *actively conflict* — these are cases with genuine semantic ambiguity that no current model resolves reliably.
+- **Confidence gating** routes samples where the encoder is uncertain -- the LLM genuinely helps on these, scoring around 85%.
+- **Ensemble disagreement gating** routes samples where multiple strong models actively predict different labels -- these cases have semantic ambiguity that no current model handles reliably.
 
-This finding has direct implications for annotation quality and system design: the 95.0% accuracy ceiling on unanimous samples represents a near-maximum achievable performance for this type of gating, and the remaining 5% of errors are irreducible without better training data.
+The practical implication for system design is that the 95.0% accuracy ceiling on unanimous samples is roughly the maximum this gating strategy can achieve, and the remaining 5% of errors probably cannot be fixed without better-labelled training data.
 
 ### 5.7 Full Comparison Table
 
@@ -304,61 +305,61 @@ This finding has direct implications for annotation quality and system design: t
 | DeBERTa-v3-base | 90.12% | 90.8% | 0% | $0.000 | 79 |
 | DeBERTa-v3-large | 90.12% | 89.5% | 0% | $0.000 | 79 |
 | GPT-4o P4 (pure) | 85.50% | 90.0% | 100% | $0.410 | 116 |
-| Claude Sonnet P3 (pure) | 88.50% | — | 100% | $2.235 | ~92 |
-| Hybrid v1 θ=0.90 | 90.12% | **91.3%** | 3.8% | $0.013 | 79 |
-| Hybrid v2 θ=0.90 | 90.12% | 91.0% | 3.8% | $0.074 | 79 |
-| Hybrid v3 θ=0.90 | 89.88% | 91.0% | 3.8% | $0.152 | 81 |
-| **Hybrid v4 θ=0.90** ⭐ | **90.62%** | 90.5% | 2.0% | **$0.007** | **75** |
-| Hybrid v5 (Ensemble) | **91.0%** | **92.5%** | 12.5% | $0.258 | 72 |
+| Claude Sonnet P3 (pure) | 88.50% | -- | 100% | $2.235 | ~92 |
+| Hybrid v1 theta=0.90 | 90.12% | **91.3%** | 3.8% | $0.013 | 79 |
+| Hybrid v2 theta=0.90 | 90.12% | 91.0% | 3.8% | $0.074 | 79 |
+| Hybrid v3 theta=0.90 | 89.88% | 91.0% | 3.8% | $0.152 | 81 |
+| Hybrid v4 theta=0.90 [best cost] | **90.62%** | 90.5% | 2.0% | **$0.007** | **75** |
+| **Hybrid v5 (Ensemble) [best overall]** | **91.0%** | **92.5%** | 12.5% | $0.258 | 72 |
 
-### 5.9 Per-Class Precision, Recall, F1 — Hybrid Systems vs Encoders
+### 5.9 Per-Class Precision, Recall, F1 -- Hybrid Systems vs Encoders
 
 | System | Acc | Macro F1 | Ent P/R/F1 | Neu P/R/F1 | Con P/R/F1 |
 |--------|-----|----------|-----------|-----------|-----------|
 | DeBERTa-v3-base | 90.1% | 0.901 | 0.944 / 0.894 / 0.919 | 0.830 / 0.886 / 0.857 | 0.931 / 0.924 / 0.927 |
 | DeBERTa-v3-large | 90.1% | 0.901 | 0.955 / 0.894 / 0.924 | 0.834 / 0.870 / 0.852 | 0.914 / 0.939 / 0.927 |
-| Hybrid v1 θ=0.90 | 90.1% | 0.901 | 0.937 / 0.894 / 0.915 | 0.840 / 0.870 / 0.855 | 0.925 / 0.939 / 0.932 |
-| Hybrid v2 θ=0.90 | 90.1% | 0.901 | 0.938 / 0.898 / 0.917 | 0.843 / 0.866 / 0.854 | 0.921 / 0.939 / 0.930 |
-| **Hybrid v4 θ=0.90 ⭐** | 90.6% | 0.906 | 0.966 / 0.901 / 0.933 | 0.844 / 0.874 / 0.859 | 0.911 / 0.943 / 0.927 |
+| Hybrid v1 theta=0.90 | 90.1% | 0.901 | 0.937 / 0.894 / 0.915 | 0.840 / 0.870 / 0.855 | 0.925 / 0.939 / 0.932 |
+| Hybrid v2 theta=0.90 | 90.1% | 0.901 | 0.938 / 0.898 / 0.917 | 0.843 / 0.866 / 0.854 | 0.921 / 0.939 / 0.930 |
+| **Hybrid v4 theta=0.90 [best cost]** | 90.6% | 0.906 | 0.966 / 0.901 / 0.933 | 0.844 / 0.874 / 0.859 | 0.911 / 0.943 / 0.927 |
 | Hybrid v5 Ensemble | **91.0%** | **0.910** | 0.948 / 0.891 / 0.918 | 0.836 / 0.906 / 0.870 | 0.950 / 0.935 / 0.942 |
 
-*The Hybrid v4 improvement over DeBERTa-v3-base is concentrated in the Neutral class: Neutral Recall increases from the encoder baseline as GPT-4o correctly resolves low-confidence neutral/entailment boundary cases. Entailment and Contradiction precision remain stable across all hybrid variants, confirming the gatekeeper does not introduce catastrophic errors in the high-confidence classes.*
+*The main improvement in v4 over DeBERTa-v3-base comes from the Neutral class: Neutral Recall goes up as GPT-4o correctly resolves the low-confidence neutral/entailment cases the encoder was unsure about. Entailment and Contradiction precision stay stable across all hybrid variants.*
 
 ### 5.8 Mismatched Evaluation Methodology Note
 
-Mismatched evaluation was conducted at θ=0.90 only for all hybrid systems, to minimise API expenditure while capturing cross-genre behaviour at the optimal threshold. This is consistent with standard ablation practice: full threshold sweeps on the secondary test set would triple API costs without adding analytical value beyond what the matched sweep reveals.
+We only ran the mismatched evaluation at theta=0.90 for all hybrid systems. Running a full three-way threshold sweep on the secondary test set would have tripled API costs without adding much analytical value beyond what the matched sweep already shows.
 
 ---
 
-## Section 6 — Cross-Genre Generalisation (RQ4)
+## Section 6 -- Cross-Genre Generalisation (RQ4)
 
 ### 6.1 Matched vs Mismatched: System-Level Comparison
 
 | System | Matched Acc | Mismatched Acc | Delta |
 |--------|-------------|----------------|-------|
-| BERT-base | 83.6% | 82.2% | −1.4% |
+| BERT-base | 83.6% | 82.2% | -1.4% |
 | DeBERTa-v3-base | 90.1% | **90.8%** | **+0.7%** |
-| DeBERTa-v3-large | 90.1% | 89.5% | −0.6% |
+| DeBERTa-v3-large | 90.1% | 89.5% | -0.6% |
 | GPT-4o P1 (zero-shot) | 84.0% | **90.5%** | **+6.5%** |
 | GPT-4o P4 (CoT) | 85.5% | 90.0% | +4.5% |
-| Hybrid v1 θ=0.90 | 90.1% | **91.3%** | **+1.2%** |
-| Hybrid v2 θ=0.90 | 90.1% | 91.0% | +0.9% |
-| Hybrid v4 θ=0.90 | 90.6% | 90.5% | −0.1% |
+| Hybrid v1 theta=0.90 | 90.1% | **91.3%** | **+1.2%** |
+| Hybrid v2 theta=0.90 | 90.1% | 91.0% | +0.9% |
+| Hybrid v4 theta=0.90 | 90.6% | 90.5% | -0.1% |
 | Hybrid v5 (Ensemble) | **91.0%** | **92.5%** | **+1.5%** |
 
 ### 6.2 Key Finding: LLMs Improve on Mismatched
 
-Across all GPT-4o prompts, mismatched accuracy **exceeds** matched accuracy by 4.5–6.5pp. This is counter-intuitive — mismatched represents out-of-distribution genres — but has a clear explanation: GPT-4o was trained on far broader data than MultiNLI's matched genres. The matched genres (fiction, telephone, travel) happen to include conversational register and informal language that the model finds harder than the mismatched genres (9/11 reports, letters, academic texts), which are closer to GPT-4o's training distribution.
+Across all GPT-4o prompts, mismatched accuracy is 4.5-6.5pp higher than matched accuracy. This seems backwards at first -- mismatched is supposed to be harder -- but there is a reasonable explanation. GPT-4o's training data is much broader than MultiNLI's matched genres. The matched genres include conversational phone calls and informal fiction that GPT-4o finds harder, while the mismatched genres (9/11 commission reports, academic letters, Verbatim text) are closer to the kind of formal text GPT-4o has seen a lot of.
 
-Fine-tuned encoders (DeBERTa) show no consistent cross-genre degradation, confirming their fine-tuning on MultiNLI captures genre-invariant semantic features rather than genre-specific surface patterns.
+Fine-tuned DeBERTa models show no consistent cross-genre drop, which suggests the NLI fine-tuning captures features that generalise well regardless of genre.
 
-### 6.3 Hybrid v1: Best Cross-Genre System
+### 6.3 Hybrid v5: Best Cross-Genre System
 
-Hybrid v1 θ=0.90 achieves **91.3% mismatched** — the highest mismatched accuracy of any system. The 30 low-confidence encoder samples escalated to GPT-4o receive the benefit of GPT-4o's broader pre-training on out-of-distribution genres, while the 770 confident samples are handled by the well-calibrated encoder. This synergy is the clearest demonstration that encoder-LLM gating is not merely a cost optimisation but a genuine accuracy improvement mechanism.
+Hybrid v5 (Ensemble Gate) reaches **92.5% mismatched** -- the highest mismatched accuracy of any system we tested. Among confidence-gated systems, Hybrid v1 leads at **91.3% mismatched**. In both cases, routing uncertain or disagreement samples to GPT-4o gives a genuine accuracy boost on out-of-distribution genres, while the encoder handles the bulk of predictions cheaply. The fact that both gating strategies improve on mismatched shows this is not just about cost savings -- the LLM fallback is adding real value on harder cross-genre cases.
 
 ---
 
-## Section 7 — Cost-Accuracy Analysis (RQ2)
+## Section 7 -- Cost-Accuracy Analysis (RQ2)
 
 ### 7.1 Complete Cost Table (per 1,000 queries, matched set)
 
@@ -367,10 +368,10 @@ Hybrid v1 θ=0.90 achieves **91.3% mismatched** — the highest mismatched accur
 | Random Baseline | 33.3% | $0.000 | Baseline |
 | DeBERTa-v3-base | 90.1% | $0.000 | **1st (free)** |
 | DeBERTa-v3-large | 90.1% | $0.000 | **1st (free)** |
-| **Hybrid v4 θ=0.90** | **90.62%** | **$0.007** | **2nd** |
-| Hybrid v1 θ=0.90 | 90.1% | $0.013 | 3rd |
-| Hybrid v2 θ=0.90 | 90.1% | $0.074 | 4th |
-| Hybrid v3 θ=0.90 | 89.88% | $0.152 | 5th |
+| **Hybrid v4 theta=0.90** | **90.62%** | **$0.007** | **2nd** |
+| Hybrid v1 theta=0.90 | 90.1% | $0.013 | 3rd |
+| Hybrid v2 theta=0.90 | 90.1% | $0.074 | 4th |
+| Hybrid v3 theta=0.90 | 89.88% | $0.152 | 5th |
 | Hybrid v5 Ensemble | **91.0%** | $0.258 | 6th |
 | Claude Sonnet P3 | 88.5% | $2.235 | 7th |
 | GPT-4o P1 | 84.0% | $0.204 | 8th |
@@ -380,41 +381,35 @@ Hybrid v1 θ=0.90 achieves **91.3% mismatched** — the highest mismatched accur
 
 ### 7.2 The Pareto Frontier
 
-Three systems lie on the cost-accuracy Pareto frontier — no other system achieves a better accuracy at the same or lower cost:
+Three systems sit on the cost-accuracy Pareto frontier -- no other system achieves better accuracy at the same or lower cost:
 
-1. **DeBERTa-v3-base**: 90.12%, $0.00 — dominated only by v4 which costs $0.007
-2. **Hybrid v4 θ=0.90**: 90.62%, $0.007 — best accuracy, near-zero cost
-3. **Hybrid v1 θ=0.90**: 90.12%, $0.013 — best mismatched accuracy (91.3%)
+1. **DeBERTa-v3-base**: 90.12%, $0.00 -- the only system that dominates it is v4, which costs $0.007
+2. **Hybrid v4 theta=0.90**: 90.62%, $0.007 -- best matched accuracy, essentially free
+3. **Hybrid v1 theta=0.90**: 90.12%, $0.013 -- best mismatched accuracy among confidence-gated systems (91.3%)
 
-All pure LLM systems fall *below* the Pareto frontier: GPT-4o achieves 84-85.5% at costs 30-60× higher than hybrid systems. This confirms the central hypothesis: gating LLMs behind encoders is strictly Pareto-superior to pure API approaches.
+Every pure LLM system falls below this frontier: GPT-4o achieves 84-85.5% at costs 30-60x higher than the hybrid systems. Routing LLMs behind an encoder gate is strictly better than using them directly for NLI.
 
 ### 7.3 Diminishing Returns Analysis
 
-Three distinct zones emerge on the cost-accuracy curve:
-
-**Zone 1 — Free tier** ($0): Encoders achieve 83.6–90.6%. The 6.6pp gap between BERT-base and DeBERTa-v3-base is achievable purely through better architecture at zero marginal cost.
-
-**Zone 2 — Micro-spend** ($0.007–$0.074): Hybrid systems gain 0.5–1.2pp over the best encoder. This is where the highest marginal accuracy-per-dollar is achieved.
-
-**Zone 3 — Full API** ($0.20–$14.83): Pure LLM systems achieve 75.9–85.5% — *below* the best encoder baseline — while costing 30–2,100× more. Diminishing returns become *negative returns* in this zone.
+Looking at the cost-accuracy curve, the picture splits pretty clearly into three regions. At zero cost, encoders alone achieve 83.6-90.6%, and the whole 6.6pp gap between BERT-base and DeBERTa-v3-base comes down purely to model choice. Once you spend even a small amount ($0.007-$0.074), hybrid systems add another 0.5-1.2pp -- this is where you get the best return on API spend. Beyond $0.20, pure LLM systems actually fall below the best encoder while costing 30-2,100x more, so diminishing returns become negative returns.
 
 ### 7.4 GPT-5 Cost Anomaly
 
-GPT-5 (o3-mini) costs $14.83–$17.54 per 1,000 queries — 36–44× the cost of GPT-4o — while achieving 75.9% matched accuracy. This result reflects o3-mini's reasoning-first architecture, which generates extensive internal chain-of-thought that drives up token counts and cost without accuracy benefit for a structured classification task like NLI. For tasks requiring multi-step logical deduction or symbolic reasoning, o3-mini would be appropriate; for NLI classification, it is clearly unsuitable.
+GPT-5 (o3-mini) costs $14.83-$17.54 per 1,000 queries -- 36-44x the cost of GPT-4o -- while only hitting 75.9% matched accuracy. The model's reasoning-first design generates long internal chains that push up token counts without helping on a structured classification task like NLI. For something requiring multi-step symbolic reasoning, o3-mini would be a reasonable choice; for NLI it is clearly the wrong tool.
 
 ### 7.5 Deployment Decision Framework
 
 | Scenario | Recommended System | Rationale |
 |----------|-------------------|-----------|
 | High-volume, cost-sensitive (>100k queries/day) | DeBERTa-v3-base | $0 API, 90.1% accuracy |
-| Best accuracy on limited budget | Hybrid v4 θ=0.90 | 90.62%, only $7/million queries |
-| Best cross-genre generalisation | Hybrid v1 θ=0.90 | 91.3% mismatched |
+| Best accuracy on limited budget | Hybrid v4 theta=0.90 | 90.62%, only $7/million queries |
+| Best cross-genre generalisation | Hybrid v1 theta=0.90 | 91.3% mismatched |
 | No local GPU (infrastructure-light) | GPT-4o P3 | $375/million, 84.8% |
 | High-stakes single queries | Claude Sonnet P3 | 88.5%, $2,235/million |
 
 ---
 
-## Section 8 — Error Analysis
+## Section 8 -- Error Analysis
 
 ### 8.1 Systematic Error Breakdown by Genre
 
@@ -428,143 +423,141 @@ GPT-5 (o3-mini) costs $14.83–$17.54 per 1,000 queries — 36–44× the cost o
 
 ### 8.2 Key Patterns
 
-**Entailment → Neutral (dominant error)**: Models consistently hedge towards neutral when entailment requires inferring beyond literal word overlap. Colloquial paraphrase cases (e.g., "couldn't even begin to identify" → "didn't know") are particularly difficult because the surface forms differ significantly even though the semantic equivalence is clear to human readers.
+**Entailment -> Neutral (dominant error)**: Models tend to hedge towards neutral when the entailment requires inferring beyond surface word overlap. Cases like "couldn't even begin to identify" -> "didn't know what any of it was" are hard because the paraphrase uses completely different words even though the meaning is equivalent.
 
-**Neutral → Contradiction (second largest)**: Models over-extrapolate negation or contrast. When a premise contains implicit comparison or evaluative language, models predict contradiction rather than recognising the logical gap between premise and hypothesis.
+**Neutral -> Contradiction (second largest)**: Models over-read negation or contrast. When a premise contains implicit comparison or evaluative language, the model sometimes jumps to contradiction rather than recognising that there is a logical gap between the two statements.
 
-**Entailment → Contradiction = 0**: Neither the encoder nor hybrid systems ever make this catastrophic error. The models reliably avoid misclassifying logically consistent pairs as contradictions, which would represent a complete reasoning failure.
+**Entailment -> Contradiction = 0**: No encoder or hybrid system ever makes this mistake. Models consistently avoid predicting contradiction for logically consistent pairs, which would be the most serious type of error.
 
 ### 8.3 Detailed Linguistic Case Studies (Hybrid v2)
 
-**Case 1 — Ent → Neu (Idiomatic Equivalence)**
+**Case 1 -- Ent -> Neu (Idiomatic Equivalence)**
 - Premise: *"Most of it, I couldn't even begin to identify."*
 - Hypothesis: *"I didn't know what any of it was."*
 - True: **entailment** | Predicted: neutral
-- Failure mode: The idiom "couldn't even begin to" requires pragmatic inference that equals total ignorance. Models lack the idiomatic grounding to map this to a direct statement.
+- Failure mode: The idiom "couldn't even begin to" implies total ignorance, but the surface forms are very different. The model does not map this to a direct paraphrase.
 
-**Case 2 — Neu → Ent (Interrogative Misparse)**
+**Case 2 -- Neu -> Ent (Interrogative Misparse)**
 - Premise: *"Why bother to sacrifice your lives for dirt farmers and slavers?"*
 - Hypothesis: *"People sacrifice their lives for farmers and slaves."*
 - True: **neutral** | Predicted: entailment
-- Failure mode: The rhetorical question framing makes the premise a challenge rather than an assertion. Models ignore the interrogative syntax and extract the propositional content as a factual claim.
+- Failure mode: The premise is a rhetorical question, not an assertion. The model ignores the interrogative framing and treats the propositional content as a factual claim.
 
-**Case 3 — Con → Neu (Attribution Blindness)**
+**Case 3 -- Con -> Neu (Attribution Blindness)**
 - Premise: *"He argued that these governors shared the congressional agenda..."*
 - Hypothesis: *"The speaker agrees with the governors."*
 - True: **contradiction** | Predicted: neutral
-- Failure mode: "Argued that" attributes a belief to a third party rather than the speaker. The model fixates on "shared... agenda" and misses that "argued" creates an attributional distance between the speaker's own view and the reported view.
+- Failure mode: "Argued that" attributes a belief to someone else. The model focuses on "shared... agenda" and misses that the speaker is reporting another person's view, not their own.
 
-**Case 4 — Mismatched Verbatim Genre**
-- Highly specialised vocabulary (e.g., technical acronyms, non-standard formatting) in the Verbatim genre disrupts in-context reasoning. Models default to neutral when semantic relationships cannot be traced through unknown entity types, inflating neutral predictions in this genre.
+**Case 4 -- Mismatched Verbatim Genre**
+- Technical acronyms and non-standard formatting in the Verbatim genre throw off in-context reasoning. Models default to neutral when they cannot trace a semantic relationship through unfamiliar terminology.
 
-### 8.4 Per-Genre Error Rate (DeBERTa-v3-base vs Hybrid v2 θ=0.90)
+### 8.4 Per-Genre Error Rate (DeBERTa-v3-base vs Hybrid v2 theta=0.90)
 
 | Genre | DeBERTa Error % | Hybrid Error % | Delta |
 |-------|-----------------|----------------|-------|
 | Fiction | 12.2% | 12.2% | 0.0% |
-| Government | 8.6% | 8.0% | −0.6% |
-| Slate | 10.3% | 9.7% | −0.6% |
+| Government | 8.6% | 8.0% | -0.6% |
+| Slate | 10.3% | 9.7% | -0.6% |
 | Telephone | 9.8% | 11.0% | +1.2% |
 | Travel | 8.7% | 8.7% | 0.0% |
 
-The hybrid system reduces errors in formal written genres (Government: −0.6%, Slate: −0.6%) but slightly worsens on Telephone transcripts (+1.2%), where GPT-4o's fallback is penalised by conversational disfluencies absent from its few-shot examples.
+The hybrid system cuts errors in formal written genres (Government: -0.6%, Slate: -0.6%) but gets slightly worse on Telephone transcripts (+1.2%), where GPT-4o's fallback is penalised by conversational disfluencies that do not appear in its few-shot examples.
 
 ### 8.5 Hybrid v5 Error Analysis: The Hard 100
 
-Of the 100 disagreement-gated samples, 75 were misclassified (75% error rate on the ensemble-escalated rows). Following post-hoc resolution of 30 GPT-4o parse failures via majority vote, the final error pattern is:
+Of the 100 disagreement-gated samples, 75 were misclassified (75% error rate on the ensemble-escalated rows). After resolving 30 GPT-4o parse failures via majority vote, the final error pattern is:
 
 | Error Type | Count |
 |------------|-------|
-| Entailment → Neutral | 28 |
-| Contradiction → Neutral | 15 |
-| Neutral → Contradiction | 11 |
-| Neutral → Entailment | 11 |
+| Entailment -> Neutral | 28 |
+| Contradiction -> Neutral | 15 |
+| Neutral -> Contradiction | 11 |
+| Neutral -> Entailment | 11 |
 | Unknown (parse failure) | 0 |
 | Other | 10 |
 
-This distribution, combined with GPT-4o's 51% accuracy on these rows, confirms they represent the irreducible label-ambiguous core of the MultiNLI dataset — cases where trained annotators may themselves disagree.
+GPT-4o's 63% accuracy on these 100 rows strongly suggests they are genuinely label-ambiguous cases -- the kind where even human annotators might disagree.
 
 ---
 
-## Section 9 — Discussion and Business Implications
+## Section 9 -- Discussion and Business Implications
 
 ### 9.1 The Encoder-LLM Complementarity Principle
 
-The central finding of this project is that encoder models and LLMs solve fundamentally different sub-problems within NLI. Encoder models (particularly DeBERTa-v3) are highly accurate on syntactically clear, unambiguous inference pairs — which constitute ~96% of the test set. Their confidence scores are well-calibrated: high-confidence predictions (≥0.90) are correct 90.1% of the time, matching overall accuracy. LLMs, by contrast, bring broader world knowledge and cross-domain generalisation, scoring 4.5–6.5% *higher* than their matched accuracy on mismatched genres.
+The main finding from this project is that encoders and LLMs are good at different things within NLI. Fine-tuned encoders (particularly DeBERTa-v3) handle the syntactically straightforward, unambiguous pairs very well -- these make up roughly 96% of the test set. Their confidence scores are also well-calibrated: predictions above 0.90 confidence achieve the same 90.1% accuracy as the full set. LLMs, on the other hand, bring in broader world knowledge and cross-domain generalisation, scoring 4.5-6.5pp higher on mismatched genres than on matched ones.
 
-The hybrid gatekeeper exploits this complementarity directly. By using encoder confidence as a routing signal, the system routes easy cases (96%) to the free, fast encoder and hard cases (4%) to the expensive LLM. The result is an architecture that is simultaneously faster, cheaper, and more accurate than either component in isolation.
+The hybrid gatekeeper directly exploits this split. Using encoder confidence as a routing signal means 96% of queries go to the fast, free encoder, and only 4% reach the LLM. The result is a system that beats both components on accuracy while costing far less than the LLM alone.
 
 ### 9.2 Confidence Gating vs Ensemble Gating: When to Use Each
 
-This study is the first to directly compare confidence-threshold gating and ensemble disagreement gating on the same NLI dataset. The results reveal a fundamental architectural distinction:
+As far as we know, no prior work has directly compared confidence-threshold gating and ensemble disagreement gating on the same NLI dataset, and the results show a clear difference between the two:
 
-**Confidence gating** (v1–v4): Escalates samples where the encoder is uncertain. The escalated rows are tractable for LLMs — GPT-4o scores ~85% on them, adding genuine value. This is the operationally recommended approach.
+Confidence gating (v1-v4) routes samples where the encoder is unsure -- GPT-4o scores around 85% on these and adds real value, which is why it is the better production choice. Ensemble disagreement gating (v5) is a different story: it routes samples where multiple strong encoders actively predict different labels. These samples are not uncertain, the models are just confidently wrong in different directions, and GPT-4o only scores 63% on them. That result suggests the ambiguity is baked into the annotations. So ensemble gating is more useful for finding bad labels than for improving accuracy.
 
-**Ensemble disagreement gating** (v5): Escalates samples where multiple strong encoders actively disagree. These rows are not uncertain — the models are highly confident in *different* answers. This gating strategy identifies annotation ambiguity rather than model uncertainty, and the LLM fallback cannot rescue genuinely ambiguous samples (63% accuracy on escalated rows after resolving parse failures). Ensemble gating has high diagnostic value — it surfaces the inherent noise floor in the dataset — but lower operational value compared to confidence gating.
-
-The practical implication: in production systems, **confidence gating is superior for accuracy**; ensemble gating is superior for **data quality auditing** — identifying the samples that should be re-annotated or flagged for human review.
+In short, confidence gating is the right choice when accuracy is the goal, and ensemble gating is the right choice when you are trying to clean up your data.
 
 ### 9.3 Business Applications
 
-**Clinical NLP and Legal Document Processing**: High-stakes NLI applications (entailment verification in medical records, contradiction detection in legal contracts) require both high accuracy and explainable escalation paths. The hybrid gatekeeper provides a natural audit trail: samples routed to the LLM can be logged for human review, while the 96% encoder-handled portion processes at near-zero marginal cost. At 1 million daily queries — typical for an enterprise medical records system — Hybrid v4 saves approximately $368/day over pure GPT-4o P3 while exceeding its accuracy.
+One natural application is clinical NLP and legal document processing. In high-stakes settings like medical record entailment or legal contract contradiction detection, you need both accuracy and an explainable escalation path. The hybrid gatekeeper naturally provides this: samples sent to the LLM can be flagged for human review, while the 96% the encoder handles costs essentially nothing. At 1 million daily queries -- typical for an enterprise system -- Hybrid v4 saves around $368/day compared to pure GPT-4o P3 while doing better on accuracy.
 
-**Real-Time Information Verification**: News and social media fact-checking systems require sub-second inference at high volume. Encoder models run in ~20ms per sample; GPT-4o API latency is 500–2000ms. The hybrid gatekeeper processes 96% of queries at encoder speed, reserving LLM latency for the 4% of ambiguous claims that genuinely require deeper reasoning.
+Real-time fact-checking is another good fit. Fact-checking pipelines need fast inference at high volume. Encoders run in about 20ms per sample; GPT-4o latency is 500-2000ms. The hybrid gatekeeper processes 96% of queries at encoder speed and only uses the slower LLM for the 4% that genuinely need it.
 
-**Annotation Quality Assurance**: The ensemble disagreement gate (Hybrid v5) has a direct business application as a data annotation tool. By processing large datasets through 3 DeBERTa variants and flagging disagreement cases for human review, organisations can identify label-ambiguous samples before model training — improving dataset quality at a fraction of the cost of full human review. The 12.5% disagreement rate on MultiNLI suggests ~12–15% of NLI annotations across datasets may require adjudication.
+The ensemble disagreement gate also has a direct use as an annotation cleaning tool. Running a large dataset through three DeBERTa variants and flagging disagreement cases for human review is a cheap way to find label-ambiguous samples before model training. The 12.5% disagreement rate on MultiNLI suggests that 12-15% of NLI annotations across standard datasets may need review.
 
 ### 9.4 SOTA Context
 
-Published benchmarks on the full MultiNLI dev-matched set report:
+Published results on the full MultiNLI dev-matched set include:
 - DeBERTa-v3-large (He et al., ICLR 2023): 91.8%
-- T5-11B: ~92–93%
-- Moritz Laurer DeBERTa-v3-large (885k multi-dataset): ~92–93%
+- T5-11B: ~92-93%
+- Moritz Laurer DeBERTa-v3-large (885k multi-dataset): ~92-93%
 
-Our DeBERTa-v3-base result of 90.12% is consistent with published base-model benchmarks. The gap to SOTA (1.7–3pp) reflects the difference between fine-tuning on the full 392k MultiNLI training set vs the cross-encoder architecture used here, which was fine-tuned on SNLI + MultiNLI jointly. Claims of 95%+ accuracy invariably refer either to SNLI (a simpler single-domain benchmark) or to tiny test sets with high variance. On full MultiNLI dev-matched, no published system exceeds 93% at the time of writing.
+Our DeBERTa-v3-base result of 90.12% is in line with published base-model numbers. The gap to SOTA (roughly 1.7-3pp) comes from fine-tuning differences: SOTA results use the full 392k MultiNLI training set, while the cross-encoder models here were fine-tuned on SNLI + MultiNLI jointly. Results above 95% in the literature almost always refer to SNLI (a simpler, single-domain benchmark) or to small test sets with high variance. On the full MultiNLI dev-matched set, no published system exceeds 93% as of early 2026.
 
 ### 9.5 Limitations
 
-1. **Sample size confidence intervals**: 800 matched and 400 mismatched samples yield ±3.5% and ±5.0% CIs, meaning differences below 4pp may not be statistically significant.
-2. **Single confidence threshold sweep**: Thresholds were evaluated at 0.85, 0.90, 0.95 — a finer sweep (e.g., 0.88, 0.92) might identify a marginally better operating point.
-3. **Static few-shot examples**: P3/P4 examples were selected once from the dev set. Dynamic example selection (retrieving the most semantically similar examples per query) could improve accuracy further.
-4. **Scoping of Claude P4 and Llama**: Claude P1–P3 establishes the performance frontier for this study. The P4 (CoT) strategy and Llama 3.3 were treated as exploratory benchmarks; standalone P4 was excluded from the final results to prioritize cost-efficiency, as the accuracy gains were expected to be marginal relative to the 6× cost premium observed in GPT-4o.
-5. **Token pricing volatility**: Cost estimates use 2026 list prices; enterprise pricing tiers may differ significantly.
-6. **Hybrid v5 parse recovery**: 30 GPT-4o output labels in hybrid v5 required post-hoc resolution due to verbose CoT parse failures: 19 were resolved by retrying the API call, 10 via majority vote of the three DeBERTa encoder predictions, and 1 via DeBERTa-base fallback for a three-way tie. Final metrics reflect the fully resolved 800/400 row dataset.
+1. **Sample size confidence intervals**: 800 matched and 400 mismatched samples give +-3.5% and +-5.0% CIs, so differences below 4pp may not be statistically reliable.
+2. **Single confidence threshold sweep**: We tested theta at 0.85, 0.90, and 0.95. A finer sweep around 0.88 or 0.92 might find a slightly better operating point.
+3. **Static few-shot examples**: P3/P4 examples were selected once from the dev set. Dynamically retrieving the nearest-neighbour examples per query would likely improve accuracy on edge cases.
+4. **Scoping of Claude P4 and Llama**: Claude P1-P3 establishes the pure-API performance frontier. P4 and Llama 3.3 were treated as exploratory rather than primary results, since the accuracy gains from P4 were outweighed by the cost premium we observed in GPT-4o.
+5. **Token pricing volatility**: All cost estimates use 2026 list prices. Enterprise or batch pricing tiers would change the numbers.
+6. **Hybrid v5 parse recovery**: 30 GPT-4o output labels in hybrid v5 needed post-hoc fixing because of verbose CoT parse failures: 19 were fixed by retrying the API call, 10 via majority vote of the three DeBERTa predictions, and 1 via DeBERTa-base fallback for a three-way tie. All metrics reflect the fully resolved 800/400 dataset.
 
 ---
 
-## Section 10 — Conclusion and Future Work
+## Section 10 -- Conclusion and Future Work
 
 ### 10.1 Summary of Findings
 
-This evaluation across 5 encoders, 4 LLM families, 4 prompt strategies, and 5 hybrid configurations produces four clear conclusions:
+Running 5 encoders, 4 LLM families across 4 prompts, and 5 hybrid variants produced four conclusions that were not all obvious going in:
 
-**RQ1 (Prompt Engineering)**: Chain-of-thought prompting improves matched accuracy (+1.5pp over zero-shot for GPT-4o) but hurts mismatched performance (−0.5pp), due to genre-specific format bias in the reasoning template. Few-shot examples add value up to ~3 examples; beyond that, token cost grows faster than accuracy. Claude Sonnet P1–P3 all exceed GPT-4o P4, with P3 achieving 88.5% — the best pure-API result in this study.
+**RQ1 (Prompt Engineering)**: Chain-of-thought prompting improves matched accuracy (+1.5pp over zero-shot for GPT-4o) but hurts mismatched performance (-0.5pp) due to format bias in the reasoning template. Few-shot examples add value up to about 3 examples, after which cost grows faster than accuracy. Claude Sonnet P1-P3 all beat GPT-4o P4, with P3 at 88.5% being the best pure-API result.
 
-**RQ2 (Cost-Accuracy Pareto)**: Three systems form the Pareto frontier: DeBERTa-v3-base (free, 90.12%), Hybrid v4 (near-free, 90.62%), and Hybrid v1 (for mismatched optimisation, 91.3%). All pure LLM systems fall below this frontier, with GPT-5 exhibiting the worst cost-accuracy ratio in the study.
+**RQ2 (Cost-Accuracy Pareto)**: Three systems form the Pareto frontier: DeBERTa-v3-base (free, 90.12%), Hybrid v4 (near-free, 90.62%), and Hybrid v1 (for mismatched, 91.3%). Every pure LLM system falls below this frontier. GPT-5 has the worst cost-accuracy ratio by a wide margin.
 
-**RQ3 (Hybrid Gatekeeper)**: Confidence-gated hybrid systems outperform both encoder and LLM components individually. Hybrid v4 achieves the best matched accuracy (90.62%) at $0.007/1k — a 98% cost reduction from GPT-4o while gaining 5pp in accuracy. The gatekeeper's value is most pronounced on mismatched genres where LLMs add genuine cross-domain reasoning.
+**RQ3 (Hybrid Gatekeeper)**: Hybrid systems beat both components individually. Hybrid v5 gets the best overall accuracy (91.0% matched, 92.5% mismatched). Hybrid v4 gives the best cost-efficiency (90.62% matched, $0.007/1k) -- a 98% cost reduction from GPT-4o while gaining 5pp in accuracy. The gatekeeper works best on mismatched genres, where the LLM adds genuine cross-domain reasoning.
 
-**RQ4 (Cross-Genre Generalisation)**: LLMs generalise *better* to mismatched genres than their matched performance would suggest (+4.5–6.5pp), while fine-tuned encoders show near-zero degradation. The hybrid system inherits LLM generalisation at encoder cost, achieving the highest mismatched accuracy (91.3%) of any system.
+**RQ4 (Cross-Genre Generalisation)**: LLMs generalise better to mismatched genres than their matched scores suggest (+4.5-6.5pp), while fine-tuned encoders stay stable. Hybrid v5 inherits LLM generalisation at encoder cost, reaching 92.5% mismatched -- the highest in this study. Hybrid v1 leads among confidence-gated systems at 91.3%.
 
 ### 10.2 Novel Contributions
 
-1. **First direct comparison** of confidence-threshold gating vs ensemble disagreement gating on MultiNLI, revealing that disagreement gating identifies annotation ambiguity (not model uncertainty).
-2. **Quantification of the hard sample ceiling**: 12.5% of MultiNLI test samples are label-ambiguous even to GPT-4o (51% accuracy), establishing a practical upper bound for NLI accuracy without annotation improvement.
-3. **DeBERTa-v3-large calibration finding**: The large model's superior confidence calibration makes it a better gatekeeper than the base model despite identical aggregate accuracy.
+1. **Direct comparison** of confidence-threshold gating vs ensemble disagreement gating on MultiNLI -- to our knowledge the first on this dataset -- showing that disagreement gating identifies annotation ambiguity rather than model uncertainty.
+2. **Quantification of the annotation ceiling**: 12.5% of MultiNLI test samples are label-ambiguous even to GPT-4o (63% accuracy), establishing a practical upper bound for NLI accuracy without better annotations.
+3. **DeBERTa-v3-large calibration finding**: The large model is a better gatekeeper than the base model despite identical aggregate accuracy, because its confidence scores are better calibrated.
 
 ### 10.3 Future Work
 
-1. **Retrieval-augmented few-shot selection**: Replace static P3 examples with dynamically retrieved nearest-neighbour examples from the dev set, expected to improve accuracy on genre-specific edge cases.
-2. **Hybrid v5c — Ensemble Gate + Claude Sonnet**: Replace GPT-4o with Claude Sonnet as the v5 fallback to test whether Claude's stronger reasoning outperforms GPT-4o on the 100 genuinely ambiguous samples. Script `src/05f_hybrid_v5c_ensemble_claude.py` is prepared. Given that Claude P4 timed out in standalone evaluation, `max_tokens` should be reduced to 150 before running.
-3. **Re-annotation study**: Use ensemble disagreement gate to identify the highest-ambiguity MultiNLI samples for IAA (Inter-Annotator Agreement) testing, quantifying the proportion of cases that represent genuine annotation noise.
-4. **Latency profiling**: Measure end-to-end inference latency for each architecture to complement the cost analysis with a latency-accuracy Pareto curve.
+1. **Retrieval-augmented few-shot selection**: Instead of fixed P3 examples, retrieve the nearest-neighbour examples from the dev set per query. This should help on genre-specific edge cases.
+2. **Hybrid v5c -- Ensemble Gate + Claude Sonnet**: Replace GPT-4o with Claude Sonnet as the v5 fallback to test whether Claude handles the 100 genuinely ambiguous samples better. Script `src/05f_hybrid_v5c_ensemble_claude.py` is already written. Note that Claude P4 timed out in standalone evaluation, so `max_tokens` should be reduced to 150 before running.
+3. **Re-annotation study**: Use the ensemble disagreement gate to flag the highest-ambiguity MultiNLI samples for inter-annotator agreement (IAA) testing, to quantify how much genuine label noise exists.
+4. **Latency profiling**: Measure end-to-end inference latency for each architecture to add a latency-accuracy Pareto dimension to the cost analysis.
 
 ---
 
-## Section 11 — References
+## Section 11 -- References
 
 1. Williams, A., Nangia, N., & Bowman, S. (2018). A broad-coverage challenge corpus for sentence understanding through inference. *NAACL-HLT 2018*.
-2. Brown, T., et al. (2020). Language models are few-shot learners. *NeurIPS 33*, 1877–1901.
+2. Brown, T., et al. (2020). Language models are few-shot learners. *NeurIPS 33*, 1877-1901.
 3. Wei, J., et al. (2022). Chain-of-thought prompting elicits reasoning in large language models. *NeurIPS 35*.
 4. Devlin, J., Chang, M., Lee, K., & Toutanova, (2019). BERT: Pre-training of deep bidirectional transformers for language understanding. *NAACL-HLT 2019*.
 5. He, P., et al. (2021). DeBERTa: Decoding-enhanced BERT with disentangled attention. *ICLR 2021*.
@@ -575,28 +568,28 @@ This evaluation across 5 encoders, 4 LLM families, 4 prompt strategies, and 5 hy
 
 ---
 
-## Appendix A — Execution Order
+## Appendix A -- Execution Order
 
 Run scripts in this order:
 ```
-01_data_preparation.py          → data/nli_*.csv
-02_encoder_baselines.py         → results/encoder_predictions_*.csv
-03_gpt4o_prompting.py           → results/api_results_gpt4o*.csv
-04_other_llms.py                → results/api_results_{claude,gpt5,llama}.csv
-05a_hybrid_v1_v2_gatekeeper.py         → results/hybrid_v{1,2}_results.csv
-05b_hybrid_v3_deberta_gpt4o_32shot.py  → results/hybrid_v3_results.csv
-05c_hybrid_v4_deberta_large_gpt4o.py   → results/hybrid_v4_results.csv
-05d_hybrid_v5_ensemble_gate.py         → results/hybrid_v5_results.csv
-05e_hybrid_v5b_tiered.py               → results/hybrid_v5b_results.csv [no API calls]
-05f_hybrid_v5c_ensemble_claude.py      → results/hybrid_v5c_results.csv
-06_cost_analysis.py             → results/cost_summary.csv
-07a_figures_main.py                   → figures/fig{1-10}*.png
-07b_figure2_pareto.py                 → figures/fig2_cost_accuracy_frontier.png
-08_error_analysis.py            → results/error_analysis.csv
-09_genre_label_analysis.py            → results/classification_reports.csv, figures/fig{13-15}*.png
+01_data_preparation.py          -> data/nli_*.csv
+02_encoder_baselines.py         -> results/encoder_predictions_*.csv
+03_gpt4o_prompting.py           -> results/api_results_gpt4o*.csv
+04_other_llms.py                -> results/api_results_{claude,gpt5,llama}.csv
+05a_hybrid_v1_v2_gatekeeper.py         -> results/hybrid_v{1,2}_results.csv
+05b_hybrid_v3_deberta_gpt4o_32shot.py  -> results/hybrid_v3_results.csv
+05c_hybrid_v4_deberta_large_gpt4o.py   -> results/hybrid_v4_results.csv
+05d_hybrid_v5_ensemble_gate.py         -> results/hybrid_v5_results.csv
+05e_hybrid_v5b_tiered.py               -> results/hybrid_v5b_results.csv [no API calls]
+05f_hybrid_v5c_ensemble_claude.py      -> results/hybrid_v5c_results.csv
+06_cost_analysis.py             -> results/cost_summary.csv
+07a_figures_main.py                   -> figures/fig{1-10}*.png
+07b_figure2_pareto.py                 -> figures/fig2_cost_accuracy_frontier.png
+08_error_analysis.py            -> results/error_analysis.csv
+09_genre_label_analysis.py            -> results/classification_reports.csv, figures/fig{13-15}*.png
 ```
 
-## Appendix B — Figures Index
+## Appendix B -- Figures Index
 
 | Figure | File | Content |
 |--------|------|---------|
@@ -609,15 +602,15 @@ Run scripts in this order:
 | Fig 7 | fig7_cm_claude.png | Claude Sonnet confusion matrix |
 | Fig 8 | fig8_cm_hybrid.png | Hybrid v2 confusion matrix |
 | Fig 8b | fig8b_cm_hybrid_v3.png | Hybrid v3 confusion matrix |
-| Fig 9 | fig9_genre_heatmap.png | Genre × system accuracy heatmap |
+| Fig 9 | fig9_genre_heatmap.png | Genre x system accuracy heatmap |
 | Fig 10 | fig10_hybrid_threshold.png | Threshold vs accuracy/API% dual-axis |
 | Fig 11 | fig11_ensemble_breakdown.png | Ensemble gate accuracy breakdown |
 | Fig 12 | fig12_gating_comparison.png | Gating strategy accuracy comparison |
 | Fig 13 | fig13_classification_report_heatmap.png | Per-class F1 heatmap across all models |
-| Fig 14 | fig14_genre_label_matrix.png | Genre × Label accuracy matrix |
+| Fig 14 | fig14_genre_label_matrix.png | Genre x Label accuracy matrix |
 | Fig 15 | fig15_per_class_bar_all_models.png | Per-class F1 bar charts for key models |
 
-## Appendix C — Environment and Reproducibility
+## Appendix C -- Environment and Reproducibility
 
 ```
 Python 3.11+
