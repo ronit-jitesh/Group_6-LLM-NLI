@@ -1,17 +1,22 @@
 # NLI Classification -- LLM-Based NLP
-**University of Edinburgh | MSc Business Analytics | 2025-26**
+University of Edinburgh | MSc Business Analytics | 2025-26
 
 ---
 
 ## Project Overview
 
-Comprehensive evaluation of Natural Language Inference (NLI) systems on MultiNLI, comparing five encoder architectures, four LLM families across four prompt strategies, and five hybrid gatekeeper architectures.
+Comprehensive evaluation of Natural Language Inference (NLI) systems on MultiNLI, comparing five
+encoder architectures, four LLM families across four prompt strategies, and five hybrid gatekeeper
+architectures.
 
-**Best overall**: Hybrid v5 (3-DeBERTa Ensemble Gate + GPT-4o) -- **91.0% matched, 92.5% mismatched**
+Best overall: Hybrid v5 (3-DeBERTa Ensemble Gate + GPT-4o) -- 91.0% matched, 92.5% mismatched
 
-**Best cost-efficiency**: Hybrid v4 (DeBERTa-v3-large + GPT-4o) -- **90.62% matched, $0.007/1k queries**
+Best cost-efficiency: Hybrid v4 (DeBERTa-v3-large + GPT-4o) -- 90.62% matched, $0.007/1k queries
 
-**Key finding**: Ensemble disagreement gating reveals that 87.5% of MultiNLI samples are unanimously solvable at 95.0% accuracy, while the remaining 12.5% represent genuinely label-ambiguous cases that even GPT-4o resolves at only 63% -- pointing to an annotation ceiling in MultiNLI rather than a model problem.
+Key finding: Ensemble disagreement gating reveals that 87.5% of MultiNLI samples are unanimously
+solvable at 95.0% accuracy, while the remaining 12.5% represent genuinely label-ambiguous cases
+that even GPT-4o resolves at only 63% -- pointing to an annotation ceiling in MultiNLI rather than
+a model problem.
 
 ---
 
@@ -43,13 +48,6 @@ LLM Final/
 |   |-- 09_genre_label_analysis.py   Per-class P/R/F1 and genre breakdown (Figs 13-15)
 |   |-- 10_significance_tests.py     McNemar's test for all key pairwise comparisons
 |
-|-- scripts/
-|   |-- dev/                         Internal tooling (NOT part of pipeline)
-|       |-- patch_v5_unknowns.py     One-time fix: resolved 30 unknown labels in v5 CSV
-|       |-- recompute_all.py         Reruns analysis scripts to sync all artifacts
-|       |-- verify_and_update_report.py  Audits report numbers against source CSVs
-|       |-- README.md                Documents what each dev script does and why
-|
 |-- utils/
 |   |-- evaluate.py                  Typed evaluation utilities: metrics, McNemar, ECE, cost
 |   |-- generate_tables.py           Typed table generators: encoders, prompts, hybrids, Pareto
@@ -57,7 +55,6 @@ LLM Final/
 |-- results/                         Auto-generated CSVs (produced by src/ scripts)
 |-- figures/                         Auto-generated PNGs (produced by src/07*.py)
 |
-|-- NLI_Comprehensive_Results.md     MAIN REPORT
 |-- README.md                        This file
 |-- AI_USE_DECLARATION.md            AI use declaration (required for submission)
 |-- PROMPTS.md                       All prompt templates used in experiments
@@ -73,7 +70,7 @@ LLM Final/
 ```bash
 # Environment setup
 pip install -r requirements.txt
-cp .env.example .env      # then fill in your API keys
+cp .env.example .env      # fill in your API keys
 
 # Step 1: Data (one-time -- requires MultiNLI JSONL files)
 python src/01_data_preparation.py
@@ -105,23 +102,23 @@ python src/09_genre_label_analysis.py
 python src/10_significance_tests.py
 ```
 
-> **Note on dev scripts**: `scripts/dev/` contains post-hoc tooling used during development. These are not part of the reproducible evaluation pipeline. See `scripts/dev/README.md`.
-
 ---
 
 ## Key Results
 
-| System | Matched Acc | Matched F1 | Mismatched Acc | API % | Cost/1k |
-|--------|-------------|-----------|----------------|-------|---------|
-| DeBERTa-v3-base | 90.12% | 0.901 | 90.8% | 0% | $0.000 |
-| DeBERTa-v3-large | 90.12% | 0.901 | 89.5% | 0% | $0.000 |
-| GPT-4o P4 (pure) | 85.50% | 0.857 | 90.0% | 100% | $0.410 |
-| Claude Sonnet P3 (pure) | 88.50% | 0.883 | -- | 100% | $2.235 |
-| Hybrid v1 theta=0.90 | 90.12% | 0.901 | **91.25%** | 3.8% | $0.013 |
-| **Hybrid v4 theta=0.90** | **90.62%** | **0.907** | 90.5% | 2.0% | **$0.007** |
-| **Hybrid v5 (Ensemble)** | **91.0%** | **0.910** | **92.5%** | 12.0% | $0.258 |
+| System | Matched F1 | Mismatched F1 | API % | Cost/1k |
+|--------|------------|---------------|-------|---------|
+| DeBERTa-v3-base | 0.901 | 0.908 | 0% | $0.000 |
+| DeBERTa-v3-large | 0.901 | 0.895 | 0% | $0.000 |
+| GPT-4o P4 (pure) | 0.857 | 0.901 | 100% | $0.407 |
+| Claude Sonnet P2 (pure) | 0.883 | -- | 100% | $0.399 |
+| Hybrid v1 theta=0.90 | 0.901 | 0.913 | 3.8% | $0.013 |
+| Hybrid v4 theta=0.90 [BEST COST] | 0.907 | 0.905 | 2.0% | $0.007 |
+| Hybrid v5 Ensemble [BEST OVERALL] | 0.910 | 0.925 | 12.0% | $0.258 |
 
-### Statistical Significance (McNemar's test, N=800)
+---
+
+## Statistical Significance (McNemar's test, N=800)
 
 | Comparison | p-value | Result |
 |------------|---------|--------|
@@ -129,23 +126,30 @@ python src/10_significance_tests.py
 | DeBERTa-large vs Hybrid v4 | 0.2266 | ns |
 | Hybrid v4 vs Hybrid v5 | 0.8774 | ns |
 | GPT-4o P1 vs P4 | 0.1624 | ns |
-| **GPT-4o P4 vs Hybrid v4** | **0.0002** | ***** p<0.01** |
+| GPT-4o P4 vs Hybrid v4 | 0.0002 | *** p<0.01 |
 | DeBERTa-base vs Hybrid v5 | 0.3239 | ns |
 
-The hybrid gains over encoders are directional but within the 800-sample confidence interval. The GPT-4o vs Hybrid comparison is strongly significant (p<0.01), confirming the 5.25pp advantage of the hybrid architecture over pure API use.
+ns = not significant at p<0.05. The GPT-4o vs Hybrid v4 comparison is strongly significant (p<0.01),
+confirming the 5.25pp hybrid advantage is not attributable to sampling variation.
 
 ---
 
 ## Important Notes
 
-**Encoder pre-training**: The DeBERTa and encoder baselines are fine-tuned on MultiNLI training data. Their accuracy reflects in-distribution performance, not zero-shot generalisation. GPT-4o and other LLMs are genuinely zero-shot. This asymmetry is intentional -- see Section 1.5 of the report.
+Encoder pre-training: The DeBERTa and encoder baselines are fine-tuned on MultiNLI training data.
+Their accuracy reflects in-distribution performance, not zero-shot generalisation. GPT-4o and other
+LLMs are genuinely zero-shot. This asymmetry is intentional.
 
-**Hybrid v5 patch**: 30 GPT-4o output labels in hybrid_v5_results.csv were resolved post-hoc (19 via API retry, 10 via DeBERTa majority vote, 1 via fallback). All reported metrics reflect the fully resolved 800/400 dataset. See Section 9.5 (Limitations).
+Hybrid v5 patch: 30 GPT-4o output labels in hybrid_v5_results.csv were resolved post-hoc
+(19 via API retry, 10 via DeBERTa majority vote, 1 via fallback). All reported metrics reflect the
+fully resolved 800/400 dataset.
 
-**Seed**: 42 throughout. All experiments reproducible with provided scripts.
+Seed: 42 throughout. All experiments reproducible with provided scripts.
 
 ---
 
-## Report
+## References
 
-Full methodology, results, and analysis: `NLI_Comprehensive_Results.md`
+Full methodology, results, and analysis: see the submitted report (LLM_Proyect_16_03.docx).
+Code-to-result mapping: TRACEABILITY.md
+Prompt templates: PROMPTS.md
