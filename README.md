@@ -1,4 +1,4 @@
-# NLI Classification -- LLM-Based NLP
+# NLI Classification - LLM-Based NLP
 University of Edinburgh | MSc Business Analytics | 2025-26
 
 ---
@@ -9,13 +9,13 @@ Comprehensive evaluation of Natural Language Inference (NLI) systems on MultiNLI
 encoder architectures, four LLM families across four prompt strategies, and five hybrid gatekeeper
 architectures.
 
-Best overall: Hybrid v5 (3-DeBERTa Ensemble Gate + GPT-4o) -- 91.0% matched, 92.5% mismatched
+Best overall: Hybrid v5 (3-DeBERTa Ensemble Gate + GPT-4o) - 91.0% matched, 92.5% mismatched
 
-Best cost-efficiency: Hybrid v4 (DeBERTa-v3-large + GPT-4o) -- 90.62% matched, $0.007/1k queries
+Best cost-efficiency: Hybrid v4 (DeBERTa-v3-large + GPT-4o) - 90.62% matched, $0.007/1k queries
 
 Key finding: Ensemble disagreement gating reveals that 87.5% of MultiNLI samples are unanimously
 solvable at 95.0% accuracy, while the remaining 12.5% represent genuinely label-ambiguous cases
-that even GPT-4o resolves at only 63% -- pointing to an annotation ceiling in MultiNLI rather than
+that even GPT-4o resolves at only 63% - pointing to an annotation ceiling in MultiNLI rather than
 a model problem.
 
 ---
