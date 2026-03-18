@@ -183,14 +183,14 @@ Results: GPT-4o 84.0% (exploratory only, run on dev set)
 
 ## Key Findings
 
-Zero-shot vs few-shot: P1 (zero-shot) achieves 84.0% on GPT-4o and 87.4% on Claude -- strong
+Zero-shot vs few-shot: P1 (zero-shot) achieves 84.0% on GPT-4o and 87.4% on Claude strong
 results for no task-specific examples. Moving to P3 adds +0.8pp for GPT-4o and +1.1pp for
 Claude. The more important finding is on mismatched genres: GPT-4o P1 achieves 90.5%
-mismatched -- higher than P4 CoT at 90.0%. Zero-shot allows the model to adapt its reasoning
+mismatched higher than P4 CoT at 90.0%. Zero-shot allows the model to adapt its reasoning
 style to each genre freely; CoT templates become a liability on out-of-distribution text.
 
 Why CoT is weaker than fine-tuned encoders on matched: RoBERTa-base achieves 88.6% matched
-vs GPT-4o P4 CoT at 85.5%. RoBERTa is fine-tuned directly on MultiNLI -- it has seen hundreds
+vs GPT-4o P4 CoT at 85.5%. RoBERTa is fine-tuned directly on MultiNLI it has seen hundreds
 of thousands of premise-hypothesis pairs from the same distribution. GPT-4o infers NLI from
 general pre-training with no direct exposure to MultiNLI's label conventions. CoT also
 introduces intermediate inference steps that can compound errors.
