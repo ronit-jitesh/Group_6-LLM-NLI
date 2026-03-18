@@ -150,6 +150,6 @@ Seed: 42 throughout. All experiments reproducible with provided scripts.
 
 ## References
 
-Full methodology, results, and analysis: see the submitted report (LLM_Proyect_16_03.docx).
+Full methodology, results, and analysis: see the submitted report
 Code-to-result mapping: TRACEABILITY.md
 Prompt templates: PROMPTS.md
