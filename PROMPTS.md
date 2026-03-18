@@ -1,4 +1,4 @@
-# NLI Classification -- Prompt Engineering Document
+# NLI Classification - Prompt Engineering Document
 
 University of Edinburgh | MSc Business Analytics | LLM-based NLP
 Seed: 42 | Temperature: 0.0 | Models: GPT-4o, Claude Sonnet 4.5, GPT-5 (o3-mini)
@@ -29,7 +29,7 @@ iteratively on the 200-sample dev set before being locked for test evaluation.
 
 ---
 
-## P1 -- Zero-Shot Simple
+## P1 - Zero-Shot Simple
 
 Strategy: Minimal instruction. No definitions, no examples. Forces the model to rely entirely
 on pre-training knowledge of NLI.
@@ -48,7 +48,7 @@ Results: GPT-4o 84.0% | Claude 87.4%
 
 ---
 
-## P2 -- Zero-Shot + Definitions
+## P2 - Zero-Shot + Definitions
 
 Strategy: Same structure as P1 but adds explicit definitions of all three labels before the
 classification instruction.
@@ -76,7 +76,7 @@ Results: GPT-4o 82.9% | Claude 88.4%
 
 ---
 
-## P3 -- Few-Shot (3 Examples)
+## P3 - Few-Shot (3 Examples)
 
 Strategy: Three balanced in-context examples (one per class) before the target pair. Examples
 drawn from the 200-sample dev set, selected to cover different genre styles.
@@ -109,7 +109,7 @@ Results: GPT-4o 84.8% | Claude 88.5%
 
 ---
 
-## P4 -- Few-Shot + Chain-of-Thought (CoT)
+## P4 - Few-Shot + Chain-of-Thought (CoT)
 
 Strategy: Same 3 examples as P3, but each example includes a brief step-by-step reasoning
 trace before the label.
@@ -153,7 +153,7 @@ Results: GPT-4o 85.5% | Claude 80.0% (CoT introduced deliberation noise)
 
 ---
 
-## P5 -- 32-Shot (Exploratory)
+## P5 - 32-Shot (Exploratory)
 
 Strategy: 32 carefully curated examples from the dev set covering all 5 genres, balanced
 across labels. No CoT reasoning traces.
